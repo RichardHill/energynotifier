@@ -1,0 +1,24 @@
+{
+  "name": "energynotifier",
+  "version": "1.0.0",
+  "description": "A serverless package that will notify registered users of the energyNotifier service",
+  "main": "handler.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "devDependencies": {
+    "@types/aws-lambda": "0.0.22",
+    "@types/node": "^8.0.57",
+    "serverless-webpack": "^4.0.0",
+    "ts-loader": "^2.3.7",
+    "typescript": "^2.5.2",
+    "webpack": "^3.6.0"
+  },
+  "author": "R.M.Hill",
+  "license": "MIT",
+  "dependencies": {
+    "aws-sdk": "^2.736.0",
+    "axios": "^0.19.2",
+    "serverless": "^1.79.0"
+  }
+}
