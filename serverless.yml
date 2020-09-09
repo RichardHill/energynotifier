@@ -23,21 +23,9 @@ provider:
       Resource: "arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/${self:provider.environment.DAILY_POWER_TABLE}"
 
 functions:
-  isUpdateAvailable:
-    handler: src/isUpdateAvailable.isUpdateAvailable
-    events:
-      - http:
-          method: get
-          path: check
-      - sns: dispatcher
-
   checkPower:
     handler: src/processPower.processPower
-    events:
-      - http:
-          method: get
-          path: check
-
+    
 resources:
   Resources:
     DailyPowerDynamoDbTable:

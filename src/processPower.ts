@@ -28,14 +28,14 @@ export const processPower: Handler = async (event: APIGatewayEvent, context: Con
     if (Object.keys(result).length === 0) {
 
       console.log("We do not have any power data for todays date.... keep checking the end point..");
-      const apiCallResult = callOctopusAPI();
+      const apiCallResult: boolean = await callOctopusAPI();
 
-      if (Object.keys(apiCallResult).length === 0) {
+      if (apiCallResult === false) {
 
         // We didn't get any data. Lets sleep for a minute then call ourselves....
         setTimeout(() => {
           var params = {
-            FunctionName: 'checkPower',
+            FunctionName: 'energyNotifier-dev-checkPower',
             InvocationType: 'Event',
             Payload: ''
           };
@@ -55,13 +55,160 @@ export const processPower: Handler = async (event: APIGatewayEvent, context: Con
       }
 
     } else {
-      console.log("We have processed power data and will alert users....");
+      console.log("We have already processed power data and will alert users....");
     }
   } catch (error) {
     console.error(error);
   }
 
-  // Use AWS Pinpoint to send an SMS -: 
+  const response = {
+    statusCode: 200,
+    body: JSON.stringify({
+      message: 'Go Serverless Webpack (Typescript) v1.0! Your function executed successfully!',
+      input: event,
+    }),
+  };
+
+  cb(null, response);
+}
+
+
+const callOctopusAPI = async () => {
+
+  const dynamo = new DynamoDB.DocumentClient({ apiVersion: '2012-08-10' });
+
+  //const octopusURL = "https://api.octopus.energy/v1/electricity-meter-points/2000056839362/meters/19L3278730/consumption/";
+  //const octopusAPISecret = 'sk_live_Yuc0gi5WwZh9wdONaMnxBfAp:';
+
+  //https://api.octopus.energy/v1/products/AGILE-18-02-21/electricity-tariffs/E-1R-AGILE-18-02-21-F/standard-unit-rates/?period_from=2020-09-06T23:30&period_to=2020-09-07T23:00
+
+  const product = 'AGILE-18-02-21';
+  const tariff_type = 'electricity-tariffs';
+  const tariff_name = 'E-1R-AGILE-18-02-21-F';
+  const rate = 'standard-unit-rates';
+  const apiURL = 'https://api.octopus.energy/v1/products/';
+
+  //Set up the time range.
+  var currentDate = new Date();
+  let tomorrow = new Date(new Date().setDate(currentDate.getDate() + 1));
+  const periodFrom = 'period_from=' + new Date().toISOString().split('T')[0] + 'T23:00:00Z';
+  const periodTo = 'period_to=' + tomorrow.toISOString().split('T')[0] + 'T23:00:00Z'
+
+  const octopusURL = apiURL + product + '/' + tariff_type + '/' + tariff_name + '/' + rate + '/?' + periodFrom + '&' + periodTo;
+  const octopusAPISecret = 'sk_live_Yuc0gi5WwZh9wdONaMnxBfAp:';
+
+  //1. Get some readings.
+  console.log("Calling the Octopus API with -: " + octopusURL);
+  const apiResults: AxiosResponse = await axios.get(octopusURL, {
+    auth: {
+      username: octopusAPISecret,
+      password: octopusAPISecret
+    }
+  });
+
+  let currentHigh: PowerReading;
+  let currentLow: PowerReading;
+
+  //Process the API response.
+  if (apiResults.data) {
+
+    let runningHigh = 0;
+    let runningLow = 100;
+    let runningAvg = 0;
+
+    const powerResultsArr = apiResults.data.results;
+
+    //Check that the data we are getting is for tomorrows date. Not todays.
+    //Get the first element
+    const firstElement = apiResults.data.results[0].valid_from;
+    var tomorrowsDate = new Date(new Date().setDate(currentDate.getDate() + 1)).toJSON().slice(0, 10).replace(/-/g, '-'); //new Date().toJSON().slice(0, 10).replace(/-/g, '-');
+
+    if (firstElement.indexOf(tomorrowsDate) === -1) {
+      console.log("----- We have failed to find data for tomorrow to process... -----");
+      return false; // Returning false will signal to call the lambda again....
+    }
+
+    powerResultsArr.forEach(element => {
+      //1. See if we have a running high
+      if (element.value_exc_vat > runningHigh) {
+
+        currentHigh = {
+          value: element.value_exc_vat,
+          start: element.valid_from,
+          end: element.valid_to,
+        }
+
+        runningHigh = element.value_exc_vat;
+      }
+
+      //2. See if we have a new low.
+      if (element.value_exc_vat < runningLow) {
+        currentLow = {
+          value: element.value_exc_vat,
+          start: element.valid_from,
+          end: element.valid_to
+        }
+      }
+
+      //3. Accumulate the average.
+      runningAvg += element.value_exc_vat;
+
+      //Store the item in our array.
+      //powerDetails.powerIntervals.push({ consumption: element.consumption, start: element.interval_start, end: element.interval_end } as PowerPriceInterval);
+
+    });
+
+    //Update the final properties.
+    const powerDetails: DailyPowerReading = {
+      dayHigh: currentHigh,
+      dayLow: currentLow,
+      dayAverage: runningAvg / powerResultsArr.length
+    }
+
+    var params = {
+      TableName: 'energyNotifier-dev',
+      Item: {
+        "date_id": parseInt(new Date().toJSON().slice(0, 10).replace(/-/g, '').toString()),
+        "date": new Date().toJSON().slice(0, 10).replace(/-/g, '/'),
+        "dayHigh": {
+          "price": powerDetails.dayHigh.value,
+          "start": powerDetails.dayHigh.start,
+          "end": powerDetails.dayHigh.end
+        },
+        "dayLow": {
+          "price": powerDetails.dayLow.value,
+          "start": powerDetails.dayLow.start,
+          "end": powerDetails.dayLow.end
+        },
+        "dayAverage": powerDetails.dayAverage.toString()
+      },
+    };
+
+    //Store this into Dynamo.
+    var docClient = new AWS.DynamoDB.DocumentClient();
+
+    try {
+      await docClient.put(params).promise();
+      return true;
+    }
+    catch (err) {
+      console.log("Failure", err.message);
+      return false;
+    }
+
+    return true;
+  };
+}
+
+
+/// Logging calls
+// console.log("First result is -: " + JSON.stringify(apiResults.data.results[0]));
+// console.log("Todays date = " + tomorrowsDate.toString());
+// console.log("The first element is -: " + firstElement.toString());
+//console.log("Processing the array.... -: " + JSON.stringify(element));
+
+
+ // Use AWS Pinpoint to send an SMS -: 
   // var pinpoint = new AWS.Pinpoint();
 
   // var pinPointParams = {
@@ -94,112 +241,3 @@ export const processPower: Handler = async (event: APIGatewayEvent, context: Con
   // });
 
   //}
-
-  const response = {
-    statusCode: 200,
-    body: JSON.stringify({
-      message: 'Go Serverless Webpack (Typescript) v1.0! Your function executed successfully!',
-      input: event,
-    }),
-  };
-
-  cb(null, response);
-}
-
-
-const callOctopusAPI = async () => {
-
-  const dynamo = new DynamoDB.DocumentClient({ apiVersion: '2012-08-10' });
-
-  const octopusURL = "https://api.octopus.energy/v1/electricity-meter-points/2000056839362/meters/19L3278730/consumption/";
-  const octopusAPISecret = 'sk_live_Yuc0gi5WwZh9wdONaMnxBfAp:';
-
-  //1. Get some readings.
-  const apiResults: AxiosResponse = await axios.get(octopusURL, {
-    auth: {
-      username: octopusAPISecret,
-      password: octopusAPISecret
-    }
-  });
-
-  let currentHigh: PowerReading;
-  let currentLow: PowerReading;
-
-  //Process the API response.
-  if (apiResults.data) {
-
-    let runningHigh = 0;
-    let runningLow = 100;
-    let runningAvg = 0;
-
-    const powerResultsArr = apiResults.data.results;
-
-    powerResultsArr.forEach(element => {
-
-      //1. See if we have a running high
-      if (element.consumption > runningHigh) {
-
-        currentHigh = {
-          price: element.consumption,
-          start: element.interval_start,
-          end: element.interval_end
-        }
-
-        runningHigh = element.consumption;
-      }
-
-      //2. See if we have a new low.
-      if (element.consumption < runningLow) {
-        currentLow = {
-          price: element.consumption,
-          start: element.interval_start,
-          end: element.interval_end
-        }
-      }
-
-      //3. Accumulate the average.
-      runningAvg += element.consumption;
-
-      //Store the item in our array.
-      //powerDetails.powerIntervals.push({ consumption: element.consumption, start: element.interval_start, end: element.interval_end } as PowerPriceInterval);
-
-    });
-
-    //Update the final properties.
-    const powerDetails: DailyPowerReading = {
-      dayHigh: currentHigh,
-      dayLow: currentLow,
-      dayAverage: runningAvg / powerResultsArr.length
-    }
-
-
-    var params = {
-      TableName: 'energyNotifier-dev',
-      Item: {
-        "date_id": parseInt(new Date().toJSON().slice(0, 10).replace(/-/g, '').toString()),
-        "date": new Date().toJSON().slice(0, 10).replace(/-/g, '/'),
-        "dayHigh": {
-          "price": powerDetails.dayHigh.price,
-          "start": powerDetails.dayHigh.start,
-          "end": powerDetails.dayHigh.end
-        },
-        "dayLow": {
-          "price": powerDetails.dayLow.price,
-          "start": powerDetails.dayLow.start,
-          "end": powerDetails.dayLow.end
-        },
-        "dayAverage": powerDetails.dayAverage.toString()
-      }
-    };
-
-    //Store this into Dynamo.
-    var docClient = new AWS.DynamoDB.DocumentClient();
-
-    try {
-      return await docClient.put(params).promise;
-    }
-    catch (err) {
-      console.log("Failure", err.message);
-    }
-  };
-}

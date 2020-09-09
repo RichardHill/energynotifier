@@ -6,14 +6,14 @@ export type DailyPowerReading = {
 }
 
 export type PowerPriceInterval = {
-    consumption: number
+    value: number
     start: Date
     end: Date
 }
 
 
 export type PowerReading = {
-    price: number;
+    value: number;
     start: string;
     end: string;
 }
