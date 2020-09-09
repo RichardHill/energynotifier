@@ -25,7 +25,9 @@ provider:
 functions:
   checkPower:
     handler: src/processPower.processPower
-    
+    events: 
+      - schedule: cron(0 16 * * ? *)
+
 resources:
   Resources:
     DailyPowerDynamoDbTable:
@@ -41,6 +43,16 @@ resources:
           ReadCapacityUnits: 5
           WriteCapacityUnits: 5
         TableName: ${self:provider.environment.DAILY_POWER_TABLE}
+    CognitoUserPool:
+      Type: AWS::Cognito::UserPool
+      Properties:
+        # Generate a name based on the stage
+        UserPoolName: ${self:service}-user-pool
+        # Set email as an alias
+        UsernameAttributes:
+          - email
+        AutoVerifiedAttributes:
+          - email
 
 
 
