@@ -4,6 +4,7 @@ service:
 # Add the serverless-webpack plugin
 plugins:
   - serverless-webpack
+  - serverless-cognito-add-custom-attributes
 
 provider:
   name: aws
@@ -11,6 +12,8 @@ provider:
   region: eu-west-2
   environment:
     DAILY_POWER_TABLE: ${self:service}-${opt:stage, self:provider.stage}
+    DOMAIN_SUFFIX: com
+  timeout: 900
   iamRoleStatements:
     - Effect: Allow
       Action:
@@ -21,12 +24,22 @@ provider:
         - dynamodb:UpdateItem
         - dynamodb:DeleteItem
       Resource: "arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/${self:provider.environment.DAILY_POWER_TABLE}"
+    - Effect: Allow
+      Action:
+        - lambda:Execute
+      Resource: "arn:aws:lambda:${opt:region, self:provider.region}:*:function/checkPower"
+    - Effect: Allow
+      Action:
+        - cognito:ListUsers
+      Resource: "arn:aws:lambda:${opt:region, self:provider.region}:*:function/getUsers"
 
 functions:
   checkPower:
     handler: src/processPower.processPower
     events: 
       - schedule: cron(0 16 * * ? *)
+  getUsers:
+    handler: src/getUsers.getUsers
 
 resources:
   Resources:
@@ -53,6 +66,57 @@ resources:
           - email
         AutoVerifiedAttributes:
           - email
-
+        Schema:
+          - Name: name
+            AttributeDataType: String
+            Mutable: true
+            Required: true
+          - Name: phone_number
+            AttributeDataType: String
+            Mutable: true
+            Required: true
+          - Name: upper_power_price
+            AttributeDataType: String
+            Mutable: true
+          - Name: upper_power_price
+            AttributeDataType: String
+            Mutable: true 
+        Policies:
+          PasswordPolicy:
+            MinimumLength: 6
+            RequireLowercase: true
+            RequireUppercase: false
+            RequireNumbers: true
+            RequireSymbols: false
+    CognitoUserPoolClient:
+      Type: AWS::Cognito::UserPoolClient
+      Properties:
+        # Generate an app client name based on the stage
+        ClientName: ${self:service}-user-pool-client
+        AllowedOAuthFlows:
+          - implicit
+        AllowedOAuthFlowsUserPoolClient: true
+        AllowedOAuthScopes:
+          - phone
+          - email
+          - openid
+          - profile
+          - aws.cognito.signin.user.admin
+        UserPoolId:
+          Ref: CognitoUserPool
+        CallbackURLs: 
+          - https://www.bbc.co.uk
+        ExplicitAuthFlows:
+          - ALLOW_USER_SRP_AUTH
+          - ALLOW_REFRESH_TOKEN_AUTH
+        GenerateSecret: false
+        SupportedIdentityProviders: 
+          - COGNITO
+    serviceUserPoolDomain:
+      Type: AWS::Cognito::UserPoolDomain 
+      Properties:
+        UserPoolId: 
+          Ref: CognitoUserPool
+        Domain: service-user-pool-domain-${opt:stage, self:provider.stage}-${self:provider.environment.DOMAIN_SUFFIX}
 
 

@@ -7,9 +7,6 @@ import axios, { AxiosResponse } from 'axios';
 
 export const processPower: Handler = async (event: APIGatewayEvent, context: Context, cb: Callback) => {
 
-  // Call the dynamo table and get the last row that was added to it.
-  // Create DynamoDB service object
-
   const dynamodbRecordIndex = new Date().toJSON().slice(0, 10).replace(/-/g, '').toString();
   console.log("processPower is going to try and retrieve a record stating with -: " + dynamodbRecordIndex);
 
@@ -30,7 +27,10 @@ export const processPower: Handler = async (event: APIGatewayEvent, context: Con
       console.log("We do not have any power data for todays date.... keep checking the end point..");
       const apiCallResult: boolean = await callOctopusAPI();
 
-      if (apiCallResult === false) {
+      if (apiCallResult) {
+        console.log("Informing users....")
+        informUsers();
+      } else {
 
         // We didn't get any data. Lets sleep for a minute then call ourselves....
         setTimeout(() => {
@@ -41,7 +41,9 @@ export const processPower: Handler = async (event: APIGatewayEvent, context: Con
           };
 
           const lambda = new AWS.Lambda();
+
           return new Promise(function (resolve, reject) {
+
             lambda.invoke(params, function (err, data) {
               if (err) {
                 reject(err)
@@ -56,6 +58,8 @@ export const processPower: Handler = async (event: APIGatewayEvent, context: Con
 
     } else {
       console.log("We have already processed power data and will alert users....");
+      console.log("Informing users....")
+      informUsers();
     }
   } catch (error) {
     console.error(error);
@@ -77,11 +81,6 @@ const callOctopusAPI = async () => {
 
   const dynamo = new DynamoDB.DocumentClient({ apiVersion: '2012-08-10' });
 
-  //const octopusURL = "https://api.octopus.energy/v1/electricity-meter-points/2000056839362/meters/19L3278730/consumption/";
-  //const octopusAPISecret = 'sk_live_Yuc0gi5WwZh9wdONaMnxBfAp:';
-
-  //https://api.octopus.energy/v1/products/AGILE-18-02-21/electricity-tariffs/E-1R-AGILE-18-02-21-F/standard-unit-rates/?period_from=2020-09-06T23:30&period_to=2020-09-07T23:00
-
   const product = 'AGILE-18-02-21';
   const tariff_type = 'electricity-tariffs';
   const tariff_name = 'E-1R-AGILE-18-02-21-F';
@@ -98,7 +97,6 @@ const callOctopusAPI = async () => {
   const octopusAPISecret = 'sk_live_Yuc0gi5WwZh9wdONaMnxBfAp:';
 
   //1. Get some readings.
-  console.log("Calling the Octopus API with -: " + octopusURL);
   const apiResults: AxiosResponse = await axios.get(octopusURL, {
     auth: {
       username: octopusAPISecret,
@@ -109,7 +107,6 @@ const callOctopusAPI = async () => {
   let currentHigh: PowerReading;
   let currentLow: PowerReading;
 
-  //Process the API response.
   if (apiResults.data) {
 
     let runningHigh = 0;
@@ -119,8 +116,11 @@ const callOctopusAPI = async () => {
     const powerResultsArr = apiResults.data.results;
 
     //Check that the data we are getting is for tomorrows date. Not todays.
-    //Get the first element
+    if (apiResults.data.results.length === 0)
+      return false;
+
     const firstElement = apiResults.data.results[0].valid_from;
+
     var tomorrowsDate = new Date(new Date().setDate(currentDate.getDate() + 1)).toJSON().slice(0, 10).replace(/-/g, '-'); //new Date().toJSON().slice(0, 10).replace(/-/g, '-');
 
     if (firstElement.indexOf(tomorrowsDate) === -1) {
@@ -192,14 +192,113 @@ const callOctopusAPI = async () => {
       return true;
     }
     catch (err) {
-      console.log("Failure", err.message);
+      console.log("Failure when trying to store data into the database", err.message);
       return false;
     }
-
-    return true;
   };
 }
 
+const informUsers = async () => {
+
+  try {
+    const users: any = await getUsers();
+
+    console.log(JSON.stringify(users));
+
+    if (users) {
+
+      users.forEach(async user => {
+
+        const email = user.Attributes[2].Value;
+        await informViaEmail(email);
+
+        const phone_number = user.Attributes[1].Value;
+        await informViaText(phone_number);
+
+      });
+
+    }
+
+  }
+  catch (e) {
+    console.log("There was an error when trying to inform the users. -: " + e);
+  }
+}
+
+
+const getUsers = async () => {
+
+  var cognitoidentityserviceprovider = new AWS.CognitoIdentityServiceProvider({ apiVersion: '2016-04-18' });
+
+  const USER_POOL_ID = 'eu-west-2_u3t7HUjtu';
+
+  var params = {
+    UserPoolId: USER_POOL_ID,
+    AttributesToGet: [
+      'email',
+      'name',
+      'phone_number'
+    ],
+  };
+
+  return new Promise((resolve, reject) => {
+    //AWS.config.update({ region: USER_POOL_REGION, 'accessKeyId': AWS_ACCESS_KEY_ID, 'secretAccessKey': AWS_SECRET_KEY });
+    var cognitoidentityserviceprovider = new AWS.CognitoIdentityServiceProvider();
+    cognitoidentityserviceprovider.listUsers(params, (err, data) => {
+      if (err) {
+        console.log(err);
+        reject(err)
+      }
+      else {
+        console.log("data", data);
+        resolve(data)
+      }
+    });
+  });
+}
+
+const informViaText = async (phone_number) => {
+
+}
+
+const informViaEmail = async (email_address) => {
+
+  var ses = new AWS.SES({ region: 'us-west-2' });
+
+  var params = {
+    Destination: {
+      ToAddresses: [email_address]
+    },
+    Message: {
+      Body: {
+        Text: {
+          Data: "Test"
+        }
+      },
+      Subject: {
+        Data: "Test Email"
+      }
+    },
+    Source: "richardmatthewhill@hotmail.com"
+  };
+
+
+  ses.sendEmail(params, function (err, data) {
+    //callback(null, { err: err, data: data });
+    if (err) {
+      console.log(err);
+      //context.fail(err);
+    } else {
+
+      console.log(data);
+      //context.succeed(event);
+    }
+  });
+}
+
+  //const octopusURL = "https://api.octopus.energy/v1/electricity-meter-points/2000056839362/meters/19L3278730/consumption/";
+  //const octopusAPISecret = 'sk_live_Yuc0gi5WwZh9wdONaMnxBfAp:';
+  //https://api.octopus.energy/v1/products/AGILE-18-02-21/electricity-tariffs/E-1R-AGILE-18-02-21-F/standard-unit-rates/?period_from=2020-09-06T23:30&period_to=2020-09-07T23:00
 
 /// Logging calls
 // console.log("First result is -: " + JSON.stringify(apiResults.data.results[0]));
