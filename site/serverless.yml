@@ -1,0 +1,29 @@
+# Welcome to serverless. Read the docs
+# https://serverless.com/framework/docs/
+
+# Serverless.yml is the configuration the CLI
+# uses to deploy your code to your provider of choice
+
+# The `service` block is the name of the service
+service: energy-notifier-site
+
+custom:
+  s3Sync:
+    # A simple configuration for copying static assets
+    - bucketName: energy-notifier-assets # required
+      localDir: /dist
+      acl: public-read
+      defaultContentType: text/html
+      # params:
+      #   - index.html
+      #     CacheControl: 'no-cache'
+      #   - "*.js":
+      #     CacheControl: 'public, max-age=31536000'
+# The `provider` block defines where your service will be deployed
+provider:
+  name: aws
+  runtime: nodejs12.x
+  region: eu-west-2
+
+plugins:
+  - serverless-s3-sync
