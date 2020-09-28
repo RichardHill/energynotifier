@@ -1,6 +1,10 @@
 # package directories
 node_modules
 jspm_packages
+dist
+yarn.lock
+yarn-error.log
+package-lock.json
 
 # Serverless directories
 .serverless

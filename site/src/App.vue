@@ -1,19 +1,40 @@
 <template>
   <div id="app">
-    <nav class="navbar navbar-inverse">
-      <div class="container-fluid">
-        <div class="navbar-header">
-          <a class="navbar-left" href="/"><img src="./assets/logo.png"/></a>
-          <div class="navbar-brand navbar-text d-none d-sm-inline">
-            <a class="navbar-brand" href="/">Energy Notifier</a>
+    <div>
+      <nav class="navbar navbar-inverse">
+        <div class="container-fluid">
+          <div class="navbar-header">
+            <div class="navbar-left">
+              <Slide>
+                <a id="home" href="#">
+                  <span>Home</span>
+                </a>
+                <a id="home" href="/login">
+                  <span>Login</span>
+                </a>
+                <a id="home" href="/profile">
+                  <span>Profile</span>
+                </a>
+                <a id="home" href="/pricing">
+                  <span>Pricing</span>
+                </a>
+              </Slide>
+            </div>
+            <div class="navbar-left"></div>
+            <a class="navbar-left" href="/">
+              <img src="./assets/logo.png" />
+            </a>
+            <div class="navbar-brand navbar-text d-none d-sm-inline">
+              <a class="navbar-brand" href="/">Energy Notifier</a>
+            </div>
           </div>
+          <ul class="nav navbar-nav navbar-right">
+            <profile></profile>
+          </ul>
         </div>
-        <ul class="nav navbar-nav navbar-right">
-          <profile></profile>
-        </ul>
-      </div>
-    </nav>
-    <main>
+      </nav>
+    </div>
+    <main id="page-wrap">
       <div class="container-fluid">
         <router-view></router-view>
       </div>
@@ -23,10 +44,13 @@
 
 <script>
 import Profile from "@/components/Profile";
+import { Slide } from "vue-burger-menu";
+
 export default {
   name: "app",
   components: {
     Profile,
+    Slide,
   },
 };
 </script>
