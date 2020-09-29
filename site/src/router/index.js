@@ -2,9 +2,10 @@ import Vue from "vue";
 import VueRouter from "vue-router";
 import Home from "@/components/Home";
 import Login from "@/components/Login";
-import Subscription from "@/components/Subscription";
+import Subscription from "@/views/Subscription";
 import Callback from "@/components/Callback";
-import Pricing from "@/components/Pricing";
+import Pricing from "@/views/Pricing";
+import Profile from "@/views/Profile";
 import ErrorMsg from "@/components/ErrorMsg";
 import store from "../store";
 
@@ -28,6 +29,15 @@ const router = new VueRouter({
       component: Login,
       meta: {
         title: "Login",
+        auth: false,
+      },
+    },
+    {
+      path: "/profile",
+      name: "profile",
+      component: Profile,
+      meta: {
+        title: "Profile",
         auth: false,
       },
     },

@@ -1,6 +1,7 @@
 <template>
   <div>
-    <h1>Energy Pricing</h1>
+    <h1>Subscription</h1>
+    <p>This is where the STRIPE integration will happen</p>
   </div>
 </template>
 

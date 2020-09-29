@@ -15,22 +15,6 @@ export default {
     var verification = generateVerification();
     store.commit("setVerification", verification);
 
-    //service-user-pool-domain-dev-com.auth.eu-west-2.amazoncognito.com/login?
-    //client_id=5vl9ro8i114m3oi4rvg2aiu5d6
-    //&response_type=token
-    //&scope=aws.cognito.signin.user.admin+email+openid+phone+profile
-    //&redirect_uri=https://www.bbc.co.uk
-    //https:
-
-    //service-user-pool-domain-dev-com.auth.eu-west-2.amazoncognito.com/login?
-    //&client_id=5vl9ro8i114m3oi4rvg2aiu5d6
-    //&response_type=token
-    //&scope=aws.cognito.signin.user.admin+email+openid+phone+profile
-    //&redirect_uri=http://localhost:8080/callback&state=5GPihe3IGokODMTQJ4jGCTu3yjpomNJE
-    //https:
-
-    //service-user-pool-domain-dev-com.auth.eu-west-2.amazoncognito.com/login?client_id=5vl9ro8i114m3oi4rvg2aiu5d6&response_type=token&scope=aws.cognito.signin.user.admin+email+openid+phone+profile&redirect_uri=https://energy-notifier-assets.s3.eu-west-2.amazonaws.com/callback&state=84l8CTlZF18BB1mlV1hLZIabHIaasMvK
-
     if (provider !== undefined) {
       // Go straight to the provider, skipping the hosted UI
       window.location.href =
@@ -61,8 +45,7 @@ export default {
         "&scope=" +
         scope +
         "&redirect_uri=" +
-        
-        //callback +
+        callback +
         "&state=" +
         verification;
     }
