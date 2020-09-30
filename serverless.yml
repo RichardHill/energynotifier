@@ -35,15 +35,27 @@ provider:
 functions:
   checkPower:
     handler: src/processPower.processPower
-    events: 
+    events:
       - schedule: cron(0 16 * * ? *)
   getUsers:
     handler: src/getUsers.getUsers
+  setLimits:
+    handler: src/setLimits.setLimits
+    events:
+      - http:
+          path: set
+          method: post
+  getLimits:
+    handler: src/getLimits.getLimits
+    events:
+      - http:
+          path: get
+          method: get
 
 resources:
   Resources:
     DailyPowerDynamoDbTable:
-      Type: 'AWS::DynamoDB::Table'
+      Type: "AWS::DynamoDB::Table"
       Properties:
         AttributeDefinitions:
           - AttributeName: date_id
@@ -77,9 +89,9 @@ resources:
           - Name: upper_power_price
             AttributeDataType: String
             Mutable: true
-          - Name: upper_power_price
+          - Name: lower_power_price
             AttributeDataType: String
-            Mutable: true 
+            Mutable: true
         Policies:
           PasswordPolicy:
             MinimumLength: 6
@@ -103,19 +115,17 @@ resources:
           - aws.cognito.signin.user.admin
         UserPoolId:
           Ref: CognitoUserPool
-        CallbackURLs: 
+        CallbackURLs:
           - https://www.bbc.co.uk
         ExplicitAuthFlows:
           - ALLOW_USER_SRP_AUTH
           - ALLOW_REFRESH_TOKEN_AUTH
         GenerateSecret: false
-        SupportedIdentityProviders: 
+        SupportedIdentityProviders:
           - COGNITO
     serviceUserPoolDomain:
-      Type: AWS::Cognito::UserPoolDomain 
+      Type: AWS::Cognito::UserPoolDomain
       Properties:
-        UserPoolId: 
+        UserPoolId:
           Ref: CognitoUserPool
         Domain: service-user-pool-domain-${opt:stage, self:provider.stage}-${self:provider.environment.DOMAIN_SUFFIX}
-
-

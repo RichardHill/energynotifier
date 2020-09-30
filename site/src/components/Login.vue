@@ -1,8 +1,10 @@
 <template>
   <div>
-    <h1>Not Authenticated</h1>
+    <h1>Welcome to Energy Notifier</h1>
     <p>
-      <a href="https://aws.amazon.com/cognito" target="_blank"
+      Please click the sign in button! 
+
+      <!-- <a href="https://aws.amazon.com/cognito" target="_blank"
         >Amazon Cognito</a
       >
       lets you easily add user sign-up and sign-in to your mobile and web apps.
@@ -10,9 +12,9 @@
       <a href="https://aws.amazon.com/cognito" target="_blank">Amazon Cognito</a
       >, you also have the options to authenticate users through social identity
       providers such as Facebook, Twitter, or Amazon, with SAML identity
-      solutions, or by using your own identity system.
+      solutions, or by using your own identity system. -->
     </p>
-    <p>
+    <!-- <p>
       <a href="https://aws.amazon.com/cognito" target="_blank"
         >Amazon Cognito</a
       >
@@ -77,7 +79,7 @@
       <a href="https://github.com/paulmaddox/aws-vuejs-cognito" target="_blank"
         >https://github.com/paulmaddox/aws-vuejs-cognito</a
       >
-    </p>
+    </p> -->
   </div>
 </template>
 

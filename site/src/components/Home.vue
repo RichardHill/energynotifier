@@ -1,9 +1,14 @@
 <template>
   <div>
     <h1>Hello {{ firstname }}</h1>
-    <p>You have successfully signed in with Cognito User Pools.</p>
 
-    <h2>Profile</h2>
+    <p>You have successfully signed in!</p>
+
+    <br />
+
+    <p>Please use the menu icon in the top left corner to navigate our site.</p>
+
+    <!-- <h2>Profile</h2>
     <p></p>
     <div class="code">
       <pre>{{ profile }}</pre>
@@ -37,7 +42,7 @@
     <p>The full source code for this example application is available here:</p>
     <a href="https://github.com/paulmaddox/aws-vuejs-cognito" target="_blank"
       >https://github.com/paulmaddox/aws-vuejs-cognito</a
-    >
+    > -->
   </div>
 </template>
 

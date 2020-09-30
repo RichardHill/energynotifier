@@ -38,7 +38,7 @@ const router = new VueRouter({
       component: Profile,
       meta: {
         title: "Profile",
-        auth: false,
+        auth: true,
       },
     },
     {
@@ -47,7 +47,7 @@ const router = new VueRouter({
       component: Subscription,
       meta: {
         title: "Subscription",
-        auth: false,
+        auth: true,
       },
     },
     {
@@ -56,7 +56,7 @@ const router = new VueRouter({
       component: Pricing,
       meta: {
         title: "Pricing",
-        auth: false,
+        auth: true,
       },
     },
     {
