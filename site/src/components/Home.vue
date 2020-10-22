@@ -6,6 +6,26 @@
 
     <br />
 
+    <h2>Profile Information</h2>
+
+    <div class="code">
+      <pre>{{ response }}</pre>
+    </div>
+
+    <div class="code">
+      <pre>{{ profile }}</pre>
+    </div>
+
+    <h2>Access Token</h2>
+    <div class="code">
+      <pre>{{ accessToken }}</pre>
+    </div>
+
+    <h2>ID Token</h2>
+    <div class="code">
+      <pre>{{ idToken }}</pre>
+    </div>
+
     <p>Please use the menu icon in the top left corner to navigate our site.</p>
 
     <!-- <h2>Profile</h2>

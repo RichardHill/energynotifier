@@ -4,7 +4,7 @@ export default {
   authenticate: function(provider) {
     var domain =
       "service-user-pool-domain-dev-com.auth.eu-west-2.amazoncognito.com"; //process.env.AWS_COGNITO_USER_POOL_DOMAIN;
-    var clientId = "5vl9ro8i114m3oi4rvg2aiu5d6"; //process.env.AWS_COGNITO_CLIENT_ID;
+    var clientId = "7b5matq0ovr18ggsjot3ketr49"; //process.env.AWS_COGNITO_CLIENT_ID;
     var type = "token";
     var scope = "aws.cognito.signin.user.admin+email+openid+phone+profile";
 

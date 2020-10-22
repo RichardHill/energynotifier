@@ -1,4 +1,4 @@
-var AWS = require("aws-sdk");
+import { CognitoIdentityServiceProvider} from "aws-sdk";
 import { APIGatewayEvent, Callback, Context, Handler } from "aws-lambda";
 import { CustomAttributePayload } from "./customAttributePayload";
 
@@ -26,15 +26,13 @@ export const setLimits: Handler = async (
     ],
   };
 
-  return new Promise((resolve, reject) => {
-    const cognitoidentityserviceprovider = new AWS.CognitoIdentityServiceProvider();
-    cognitoidentityserviceprovider.updateUserAttributes(params, function (
-      err,
-      data
-    ) {
-      if (err) console.log(err, err.stack);
-      // an error occurred
-      else console.log(data); // successful response
-    });
-  });
+
+    const cognitoidentityserviceprovider = new CognitoIdentityServiceProvider();
+    const userDetails = await cognitoidentityserviceprovider.updateUserAttributes(params).promise(); 
+    
+    return {
+        statusCode: 200,
+        body: JSON.stringify(userDetails)
+    }
+
 };

@@ -1,33 +1,28 @@
-var AWS = require("aws-sdk");
+import { CognitoIdentityServiceProvider} from "aws-sdk";
 import { APIGatewayEvent, Callback, Context, Handler } from "aws-lambda";
+import { GetUserRequest } from "aws-sdk/clients/cognitoidentityserviceprovider";
 
 export const getLimits: Handler = async (
   event: APIGatewayEvent,
   context: Context,
   cb: Callback
 ) => {
- 
+  
+    const accessToken = event.queryStringParameters['AccessToken'];
 
-      const USER_POOL_ID = "eu-west-2_u3t7HUjtu";
+    var params : GetUserRequest = {
+      AccessToken : accessToken
+    };
 
-      var params = {
-        UserPoolId: USER_POOL_ID,
-        AttributesToGet: ["email", "name", "phone_number"],
-      };
+   const cognitoidentityserviceprovider = new CognitoIdentityServiceProvider();
+   const result = await cognitoidentityserviceprovider.getUser(params).promise();
 
-      return new Promise((resolve, reject) => {
-        //AWS.config.update({ region: USER_POOL_REGION, 'accessKeyId': AWS_ACCESS_KEY_ID, 'secretAccessKey': AWS_SECRET_KEY });
-        var cognitoidentityserviceprovider = new AWS.CognitoIdentityServiceProvider();
-        cognitoidentityserviceprovider.listUsers(params, (err, data) => {
-          if (err) {
-            console.log(err);
-            reject(err);
-          } else {
-            console.log("data", data);
-            resolve(data);
-          }
-        });
-      });
+   const customResult = result.UserAttributes.filter(element => element.Name.startsWith("custom"));
+
+   return {
+        statusCode: 200,
+        body: JSON.stringify(customResult)
+    }
 };
 
 
