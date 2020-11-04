@@ -26,13 +26,18 @@ export const setLimits: Handler = async (
     ],
   };
 
-
     const cognitoidentityserviceprovider = new CognitoIdentityServiceProvider();
     const userDetails = await cognitoidentityserviceprovider.updateUserAttributes(params).promise(); 
+
+    console.log("The user details are -: ", JSON.stringify(userDetails));
     
     return {
         statusCode: 200,
-        body: JSON.stringify(userDetails)
+        "headers": { 
+            "Access-Control-Allow-Origin": "*",    
+            "Access-Control-Allow-Credentials" : true // Required for cookies, authorization headers with HTTPS 
+        },
+        //body: JSON.stringify(userDetails)
     }
 
 };

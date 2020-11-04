@@ -21,6 +21,10 @@ export const getLimits: Handler = async (
 
    return {
         statusCode: 200,
+        "headers": { 
+            "Access-Control-Allow-Origin": "*" ,
+            "Access-Control-Allow-Credentials" : true // Required for cookies, authorization headers with HTTPS 
+        },
         body: JSON.stringify(customResult)
     }
 };

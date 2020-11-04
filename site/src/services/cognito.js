@@ -1,34 +1,43 @@
-import store from "../store";
 import axios from "axios";
 
-export default {
-  updateUserEnergyValues: function(lowerLimit, upperLimit) {
-    //First get the user
-    const theUserToken = this.$store.getters.accessToken;
-
-    const thePostURL =
-      "https://puupx6cgqa.execute-api.eu-west-2.amazonaws.com/dev";
+const cognito =  {
+  updateUserEnergyValues: async function(lowerLimit, upperLimit, accessToken) {
+  
+    const theUrl =
+      "https://xrki6fd3d6.execute-api.eu-west-2.amazonaws.com/dev/set";
 
     const theBody = {
-      upper_limit: upperLimit,
-      lower_limit: lowerLimit,
-      user_key: theUserToken,
+      upper_limit: upperLimit.toString(),
+      lower_limit: lowerLimit.toString(),
+      user_key: accessToken,
     };
 
     //Now set up Axios to make the POST request.
-    var http = axios.create({
-      baseURL: thePostURL,
-      data: theBody,
+    axios.request({ method: 'POST', url: theUrl, data: JSON.stringify(theBody)});
+
+  },
+  getUserEnergyValues: async (accessToken) => {
+
+      console.log("The Access Token -: " + accessToken);
+
+      const theUrl =
+      'https://xrki6fd3d6.execute-api.eu-west-2.amazonaws.com/dev/get?AccessToken='+accessToken;    
+      var http = axios.create({
+      baseURL: theUrl,
+      params: {
+        AccessToken: accessToken
+      }
     });
 
-    http
-      .post("/update")
-      .then((response) => {
-        this.response = response;
-      })
-      .catch((err) => {
-        this.response = err;
-      });
-  },
-  getUserEnergyValues: function() {},
+    console.log("Here!!!!");
+    const results =  await http.get();
+    console.log("NOW");
+
+    console.log("The values from Axios are -: " +  JSON.stringify(results));
+
+    return results;
+  }
+ 
 };
+
+export default cognito;
