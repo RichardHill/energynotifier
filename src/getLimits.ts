@@ -1,6 +1,7 @@
-import { CognitoIdentityServiceProvider} from "aws-sdk";
+import { CognitoIdentityServiceProvider, SNS} from "aws-sdk";
 import { APIGatewayEvent, Callback, Context, Handler } from "aws-lambda";
 import { GetUserRequest } from "aws-sdk/clients/cognitoidentityserviceprovider";
+import { PowerProcessingResult } from "./powerProcessingResult";
 
 export const getLimits: Handler = async (
   event: APIGatewayEvent,
@@ -10,14 +11,14 @@ export const getLimits: Handler = async (
   
     const accessToken = event.queryStringParameters['AccessToken'];
 
-    var params : GetUserRequest = {
-      AccessToken : accessToken
-    };
+     var params : GetUserRequest = {
+       AccessToken : accessToken
+     };
 
-   const cognitoidentityserviceprovider = new CognitoIdentityServiceProvider();
-   const result = await cognitoidentityserviceprovider.getUser(params).promise();
+    const cognitoidentityserviceprovider = new CognitoIdentityServiceProvider();
+    const result = await cognitoidentityserviceprovider.getUser(params).promise();
 
-   const customResult = result.UserAttributes.filter(element => element.Name.startsWith("custom"));
+    const customResult = result.UserAttributes.filter(element => element.Name.startsWith("custom"));
 
    return {
         statusCode: 200,
@@ -28,5 +29,4 @@ export const getLimits: Handler = async (
         body: JSON.stringify(customResult)
     }
 };
-
 

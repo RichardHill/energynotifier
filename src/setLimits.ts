@@ -10,7 +10,7 @@ export const setLimits: Handler = async (
   // Store the invcoming values
   const updateValues: CustomAttributePayload = new CustomAttributePayload(
     JSON.parse(event.body)
-  );
+  );  
 
   var params = {
     AccessToken: updateValues.user_key,
@@ -29,15 +29,13 @@ export const setLimits: Handler = async (
     const cognitoidentityserviceprovider = new CognitoIdentityServiceProvider();
     const userDetails = await cognitoidentityserviceprovider.updateUserAttributes(params).promise(); 
 
-    console.log("The user details are -: ", JSON.stringify(userDetails));
-    
     return {
         statusCode: 200,
         "headers": { 
             "Access-Control-Allow-Origin": "*",    
             "Access-Control-Allow-Credentials" : true // Required for cookies, authorization headers with HTTPS 
         },
-        //body: JSON.stringify(userDetails)
+        body: JSON.stringify(userDetails)
     }
 
 };

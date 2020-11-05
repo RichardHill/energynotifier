@@ -2,7 +2,6 @@
   "name": "energynotifier",
   "version": "1.0.0",
   "description": "A serverless package that will notify registered users of the energyNotifier service",
-  "main": "handler.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },

@@ -18,10 +18,8 @@ const cognito =  {
   },
   getUserEnergyValues: async (accessToken) => {
 
-      console.log("The Access Token -: " + accessToken);
-
       const theUrl =
-      'https://xrki6fd3d6.execute-api.eu-west-2.amazonaws.com/dev/get?AccessToken='+accessToken;    
+      'https://xrki6fd3d6.execute-api.eu-west-2.amazonaws.com/dev/get?AccessToken=' + accessToken;    
       var http = axios.create({
       baseURL: theUrl,
       params: {
@@ -29,13 +27,8 @@ const cognito =  {
       }
     });
 
-    console.log("Here!!!!");
-    const results =  await http.get();
-    console.log("NOW");
+    return await http.get();
 
-    console.log("The values from Axios are -: " +  JSON.stringify(results));
-
-    return results;
   }
  
 };

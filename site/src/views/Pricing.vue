@@ -26,8 +26,6 @@ export default {
       this.$store.getters.accessToken
     );
 
-    console.log("The values are -: " + JSON.stringify(results));
-
     this.upperLimit = results.data[1].Value;
     this.lowerLimit = results.data[0].Value;
   },

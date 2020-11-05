@@ -1,66 +1,22 @@
-var AWS = require('aws-sdk');
 import { APIGatewayEvent, Callback, Context, Handler } from 'aws-lambda';
-
-import { DynamoDB } from 'aws-sdk';
+import { CognitoIdentityServiceProvider,DynamoDB, SES, SNS} from "aws-sdk";
 import { DailyPowerReading, PowerReading } from '../daily_power_reading';
 import axios, { AxiosResponse } from 'axios';
+import { PowerProcessingResult } from './powerProcessingResult';
 
 export const processPower: Handler = async (event: APIGatewayEvent, context: Context, cb: Callback) => {
 
-  const dynamodbRecordIndex = new Date().toJSON().slice(0, 10).replace(/-/g, '').toString();
-  console.log("processPower is going to try and retrieve a record stating with -: " + dynamodbRecordIndex);
-
-  var ddb = new AWS.DynamoDB({ apiVersion: '2012-08-10' });
-
   try {
-    var params = {
-      Key: {
-        "date_id": { "N": dynamodbRecordIndex }
-      },
-      TableName: 'energyNotifier-dev',
-    };
 
-    const result = await ddb.getItem(params).promise();
+    // Get todays data.
+      const powerData = await callOctopusAPI();
 
-    if (Object.keys(result).length === 0) {
+    // Who needs to be notified.
+      const usersToNotify = processUsers(powerData);
 
-      console.log("We do not have any power data for todays date.... keep checking the end point..");
-      const apiCallResult: boolean = await callOctopusAPI();
+    // Inform the users.
+      informUsers(usersToNotify, powerData);
 
-      if (apiCallResult) {
-        console.log("Informing users....")
-        informUsers();
-      } else {
-
-        // We didn't get any data. Lets sleep for a minute then call ourselves....
-        setTimeout(() => {
-          var params = {
-            FunctionName: 'energyNotifier-dev-checkPower',
-            InvocationType: 'Event',
-            Payload: ''
-          };
-
-          const lambda = new AWS.Lambda();
-
-          return new Promise(function (resolve, reject) {
-
-            lambda.invoke(params, function (err, data) {
-              if (err) {
-                reject(err)
-              } else {
-                resolve(data)
-              }
-            })
-          });
-
-        }, 60000);
-      }
-
-    } else {
-      console.log("We have already processed power data and will alert users....");
-      console.log("Informing users....")
-      informUsers();
-    }
   } catch (error) {
     console.error(error);
   }
@@ -68,14 +24,13 @@ export const processPower: Handler = async (event: APIGatewayEvent, context: Con
   const response = {
     statusCode: 200,
     body: JSON.stringify({
-      message: 'Go Serverless Webpack (Typescript) v1.0! Your function executed successfully!',
+      message: 'processPower function executed successfully!',
       input: event,
     }),
   };
 
   cb(null, response);
 }
-
 
 const callOctopusAPI = async () => {
 
@@ -121,7 +76,7 @@ const callOctopusAPI = async () => {
 
     const firstElement = apiResults.data.results[0].valid_from;
 
-    var tomorrowsDate = new Date(new Date().setDate(currentDate.getDate() + 1)).toJSON().slice(0, 10).replace(/-/g, '-'); //new Date().toJSON().slice(0, 10).replace(/-/g, '-');
+    var tomorrowsDate = new Date(new Date().setDate(currentDate.getDate() + 1)).toJSON().slice(0, 10).replace(/-/g, '-');
 
     if (firstElement.indexOf(tomorrowsDate) === -1) {
       console.log("----- We have failed to find data for tomorrow to process... -----");
@@ -165,9 +120,7 @@ const callOctopusAPI = async () => {
       dayAverage: runningAvg / powerResultsArr.length
     }
 
-    var params = {
-      TableName: 'energyNotifier-dev',
-      Item: {
+    const theRecord = {
         "date_id": parseInt(new Date().toJSON().slice(0, 10).replace(/-/g, '').toString()),
         "date": new Date().toJSON().slice(0, 10).replace(/-/g, '/'),
         "dayHigh": {
@@ -181,44 +134,99 @@ const callOctopusAPI = async () => {
           "end": powerDetails.dayLow.end
         },
         "dayAverage": powerDetails.dayAverage.toString()
-      },
+      };
+
+    var params = {
+      TableName: 'energyNotifier-dev',
+      Item: theRecord
     };
 
     //Store this into Dynamo.
-    var docClient = new AWS.DynamoDB.DocumentClient();
+    var docClient = new DynamoDB.DocumentClient();
 
     try {
       await docClient.put(params).promise();
-      return true;
+      return theRecord;
     }
     catch (err) {
       console.log("Failure when trying to store data into the database", err.message);
-      return false;
+      return null;
     }
   };
 }
 
-const informUsers = async () => {
+const processUsers = async (todaysRecord : any) => {
+
+    // Get the customer values
+    let resultsArray = [];
+
+    const userInformation = {
+      UserPoolId: 'eu-west-2_hJO9MPNwT',
+      AttributesToGet: ['name','custom:upper_power_price', 'custom:lower_power_price', 'phone_number', 'email'],
+    };
+
+    const cognitoidentityserviceprovider = new CognitoIdentityServiceProvider();
+    const userDetails = await cognitoidentityserviceprovider.listUsers(userInformation).promise(); 
+
+    userDetails.Users.forEach(element => {
+
+      console.log("The user details are -: " + JSON.stringify(element));
+
+      const filteredResult = element.Attributes.filter(element => element.Name.startsWith("custom"));
+
+      //User Prices
+        const userUpperPrice = parseInt(filteredResult[0].Value);
+        const userLowerPrice = parseInt(filteredResult[1].Value);
+
+      //Todays Prices
+        const todaysUpper = parseInt(todaysRecord.dayHigh.price);
+        const todaysLower = parseInt(todaysRecord.dayLow.price);
+
+      // Are we close to the user upper price?
+      let upperTrigger : boolean = false;
+      let lowerTrigger : boolean = false;
+
+      if(todaysUpper >= userUpperPrice) {
+        upperTrigger = true;
+      }
+      
+      if (todaysLower <= userLowerPrice) {
+        lowerTrigger = true;
+      }
+    
+      resultsArray.push(new PowerProcessingResult(upperTrigger, lowerTrigger, element));
+
+    });
+
+  return resultsArray;
+};
+
+const informUsers = async (users, powerData) => {
+
+  console.log("The power data is -: " + JSON.stringify(powerData));
 
   try {
-    const users: any = await getUsers();
-
-    console.log(JSON.stringify(users));
-
-    if (users) {
-
       users.forEach(async user => {
 
-        const email = user.Attributes[2].Value;
-        await informViaEmail(email);
+        console.log("The user data is -: " + JSON.stringify(user));
 
-        const phone_number = user.Attributes[1].Value;
-        await informViaText(phone_number);
+        if (user.upperLimitTrigger || user.lowerLimitTrigger) {
 
+          let message = 'Hi, ' + user.theUser.Name;
+
+          if (user.upperLimitTrigger) {
+            message += " between " + new Date(powerData.dayHigh.start).toLocaleString() + " and " +  new Date(powerData.dayHigh.end).toLocaleString() + " you will be paid " + powerData.dayHigh.price + " pence to use electricity";
+          }
+
+          if (user.lowerLimitTrigger) {
+            if (user.upperLimitTrigger) message += " and ";
+            message += " between " + new Date(powerData.dayLow.start).toLocaleString() + " and " + new Date(powerData.dayLow.end).toLocaleString() + " you will be paid " + powerData.dayLow.price + " pence to export electricity";
+          }
+        
+          const phone_number = user.theUser.phone_number;
+          await informViaText(phone_number, message);
+        }
       });
-
-    }
-
   }
   catch (e) {
     console.log("There was an error when trying to inform the users. -: " + e);
@@ -226,9 +234,47 @@ const informUsers = async () => {
 }
 
 
+const informViaText = async (phone_number, message) => {
+  // Create publish parameters
+  var params = {
+    Message: message, /* required */
+    MessageStructure: "string", 
+    PhoneNumber: phone_number,
+  };
+
+  var sns = new SNS({apiVersion: '2010-03-31'});
+  console.log("Publishing the following text message -: " + message + " to " + phone_number);
+
+  try {
+    let data = await sns.publish({
+      Message: message,
+      MessageAttributes: {
+        'AWS.SNS.SMS.SMSType': {
+          DataType: 'String',
+          StringValue: 'Promotional'
+        },
+        'AWS.SNS.SMS.SenderID': {
+          DataType: 'String',
+          StringValue: 'nrgnotifier'
+        },
+      },
+      PhoneNumber: '+447971963698'
+    }).promise();
+
+    console.log("Sent message to", phone_number);
+    console.log("The data is -: " + data);
+    return data;
+
+  } catch (err) {
+    console.log("Sending failed", err);
+    throw err;
+  }
+}
+
+
 const getUsers = async () => {
 
-  var cognitoidentityserviceprovider = new AWS.CognitoIdentityServiceProvider({ apiVersion: '2016-04-18' });
+  var cognitoidentityserviceprovider = new CognitoIdentityServiceProvider({ apiVersion: '2016-04-18' });
 
   const USER_POOL_ID = 'eu-west-2_u3t7HUjtu';
 
@@ -243,7 +289,7 @@ const getUsers = async () => {
 
   return new Promise((resolve, reject) => {
     //AWS.config.update({ region: USER_POOL_REGION, 'accessKeyId': AWS_ACCESS_KEY_ID, 'secretAccessKey': AWS_SECRET_KEY });
-    var cognitoidentityserviceprovider = new AWS.CognitoIdentityServiceProvider();
+    var cognitoidentityserviceprovider = new CognitoIdentityServiceProvider();
     cognitoidentityserviceprovider.listUsers(params, (err, data) => {
       if (err) {
         console.log(err);
@@ -257,13 +303,9 @@ const getUsers = async () => {
   });
 }
 
-const informViaText = async (phone_number) => {
-
-}
-
 const informViaEmail = async (email_address) => {
 
-  var ses = new AWS.SES({ region: 'us-west-2' });
+  var ses = new SES({ region: 'us-west-2' });
 
   var params = {
     Destination: {
@@ -340,3 +382,17 @@ const informViaEmail = async (email_address) => {
   // });
 
   //}
+
+  //const dynamodbRecordIndex = new Date().toJSON().slice(0, 10).replace(/-/g, '').toString();
+  //console.log("processPower is going to try and retrieve a record stating with -: " + dynamodbRecordIndex);
+  // var ddb = new AWS.DynamoDB({ apiVersion: '2012-08-10' });
+  //   var params = {
+  //   Key: {
+  //     "date_id": { "N": dynamodbRecordIndex }
+  //   },
+  //   TableName: 'energyNotifier-dev',
+  // };
+  // let todaysRecord = await ddb.getItem(params).promise();
+  // if (Object.keys(todaysRecord).length === 0) {
+  //    todaysRecord = await callOctopusAPI();
+  // } 
