@@ -36,7 +36,7 @@ export default {
     };
   },
   methods: {
-    update: async function(event) {
+    update: async function() {
       const accessToken = this.$store.getters.accessToken;
       await cognito.updateUserEnergyValues(
         this.lowerLimit,

@@ -1,21 +1,21 @@
 import { APIGatewayEvent, Callback, Context, Handler } from 'aws-lambda';
-import { CognitoIdentityServiceProvider,DynamoDB, SES, SNS} from "aws-sdk";
-import { DailyPowerReading, PowerReading } from '../daily_power_reading';
+import { CognitoIdentityServiceProvider,DynamoDB, SES, SNS, SSM} from "aws-sdk";
+import { DailyPowerReading, PowerPriceInterval, PowerReading } from '../daily_power_reading';
 import axios, { AxiosResponse } from 'axios';
 import { PowerProcessingResult } from './powerProcessingResult';
 
 export const processPower: Handler = async (event: APIGatewayEvent, context: Context, cb: Callback) => {
 
   try {
-
+    
     // Get todays data.
-      const powerData = await callOctopusAPI();
+    const powerData = await callOctopusAPI();
 
     // Who needs to be notified.
-      const usersToNotify = processUsers(powerData);
+    const usersToNotify = await processUsers(powerData);
 
     // Inform the users.
-      informUsers(usersToNotify, powerData);
+    await informUsers(usersToNotify, powerData);
 
   } catch (error) {
     console.error(error);
@@ -41,6 +41,7 @@ const callOctopusAPI = async () => {
   const tariff_name = 'E-1R-AGILE-18-02-21-F';
   const rate = 'standard-unit-rates';
   const apiURL = 'https://api.octopus.energy/v1/products/';
+  const SSM_API_KEY_VALUE = 'octopus_api_key';
 
   //Set up the time range.
   var currentDate = new Date();
@@ -49,13 +50,17 @@ const callOctopusAPI = async () => {
   const periodTo = 'period_to=' + tomorrow.toISOString().split('T')[0] + 'T23:00:00Z'
 
   const octopusURL = apiURL + product + '/' + tariff_type + '/' + tariff_name + '/' + rate + '/?' + periodFrom + '&' + periodTo;
-  const octopusAPISecret = 'sk_live_Yuc0gi5WwZh9wdONaMnxBfAp:';
+
+  //Get the API Key from the parameter store.
+  const ssm = new SSM();
+  const ssm_params = { Name: SSM_API_KEY_VALUE, WithDecryption: true }
+  const octopusAPISecret = await ssm.getParameter(ssm_params).promise();
 
   //1. Get some readings.
   const apiResults: AxiosResponse = await axios.get(octopusURL, {
     auth: {
-      username: octopusAPISecret,
-      password: octopusAPISecret
+      username: octopusAPISecret.Parameter.Value,
+      password: octopusAPISecret.Parameter.Value
     }
   });
 
@@ -67,12 +72,13 @@ const callOctopusAPI = async () => {
     let runningHigh = 0;
     let runningLow = 100;
     let runningAvg = 0;
+    let fullRecords = [];
 
     const powerResultsArr = apiResults.data.results;
 
     //Check that the data we are getting is for tomorrows date. Not todays.
     if (apiResults.data.results.length === 0)
-      return false;
+      return null;
 
     const firstElement = apiResults.data.results[0].valid_from;
 
@@ -109,7 +115,7 @@ const callOctopusAPI = async () => {
       runningAvg += element.value_exc_vat;
 
       //Store the item in our array.
-      //powerDetails.powerIntervals.push({ consumption: element.consumption, start: element.interval_start, end: element.interval_end } as PowerPriceInterval);
+      fullRecords.push(element);
 
     });
 
@@ -117,12 +123,16 @@ const callOctopusAPI = async () => {
     const powerDetails: DailyPowerReading = {
       dayHigh: currentHigh,
       dayLow: currentLow,
-      dayAverage: runningAvg / powerResultsArr.length
+      dayAverage: runningAvg / powerResultsArr.length,
+      powerIntervals: fullRecords
     }
+
+    const currentDateTime = new Date();
 
     const theRecord = {
         "date_id": parseInt(new Date().toJSON().slice(0, 10).replace(/-/g, '').toString()),
         "date": new Date().toJSON().slice(0, 10).replace(/-/g, '/'),
+        "timeOfHarvest":  currentDateTime.toUTCString(),
         "dayHigh": {
           "price": powerDetails.dayHigh.value,
           "start": powerDetails.dayHigh.start,
@@ -133,7 +143,8 @@ const callOctopusAPI = async () => {
           "start": powerDetails.dayLow.start,
           "end": powerDetails.dayLow.end
         },
-        "dayAverage": powerDetails.dayAverage.toString()
+        "dayAverage": powerDetails.dayAverage.toString(),
+        "recordArray": fullRecords
       };
 
     var params = {
@@ -157,6 +168,9 @@ const callOctopusAPI = async () => {
 
 const processUsers = async (todaysRecord : any) => {
 
+  if (todaysRecord === null) {
+    console.log("----- NO POWER DATA ------")
+  }
     // Get the customer values
     let resultsArray = [];
 
@@ -168,7 +182,8 @@ const processUsers = async (todaysRecord : any) => {
     const cognitoidentityserviceprovider = new CognitoIdentityServiceProvider();
     const userDetails = await cognitoidentityserviceprovider.listUsers(userInformation).promise(); 
 
-    userDetails.Users.forEach(element => {
+    console.log("The repsonse from Cognito is -:  " + JSON.stringify(userDetails));
+    [...userDetails.Users].forEach(element => {
 
       console.log("The user details are -: " + JSON.stringify(element));
 
@@ -179,6 +194,8 @@ const processUsers = async (todaysRecord : any) => {
         const userLowerPrice = parseInt(filteredResult[1].Value);
 
       //Todays Prices
+      console.log("Todays Record is -: " + JSON.stringify(todaysRecord));
+
         const todaysUpper = parseInt(todaysRecord.dayHigh.price);
         const todaysLower = parseInt(todaysRecord.dayLow.price);
 
@@ -198,6 +215,8 @@ const processUsers = async (todaysRecord : any) => {
 
     });
 
+    console.log("Return this array =: " + JSON.stringify(resultsArray));
+    
   return resultsArray;
 };
 
@@ -215,12 +234,12 @@ const informUsers = async (users, powerData) => {
           let message = 'Hi, ' + user.theUser.Name;
 
           if (user.upperLimitTrigger) {
-            message += " between " + new Date(powerData.dayHigh.start).toLocaleString() + " and " +  new Date(powerData.dayHigh.end).toLocaleString() + " you will be paid " + powerData.dayHigh.price + " pence to use electricity";
+            message += " between " + new Date(powerData.dayHigh.start).toLocaleString() + " and " +  new Date(powerData.dayHigh.end).toLocaleString() + " you will be charged " + powerData.dayHigh.price + " pence to use electricity";
           }
 
           if (user.lowerLimitTrigger) {
             if (user.upperLimitTrigger) message += " and ";
-            message += " between " + new Date(powerData.dayLow.start).toLocaleString() + " and " + new Date(powerData.dayLow.end).toLocaleString() + " you will be paid " + powerData.dayLow.price + " pence to export electricity";
+            message += " between " + new Date(powerData.dayLow.start).toLocaleString() + " and " + new Date(powerData.dayLow.end).toLocaleString() + " you will be cahrged " + powerData.dayLow.price + " pence to use electricity";
           }
         
           const phone_number = user.theUser.phone_number;
@@ -251,18 +270,18 @@ const informViaText = async (phone_number, message) => {
       MessageAttributes: {
         'AWS.SNS.SMS.SMSType': {
           DataType: 'String',
-          StringValue: 'Promotional'
+          StringValue: 'Transactional'
         },
         'AWS.SNS.SMS.SenderID': {
           DataType: 'String',
           StringValue: 'nrgnotifier'
         },
       },
-      PhoneNumber: '+447971963698'
+      PhoneNumber: phone_number
     }).promise();
 
     console.log("Sent message to", phone_number);
-    console.log("The data is -: " + data);
+    console.log("The data is -: " + JSON.stringify(data));
     return data;
 
   } catch (err) {

@@ -16,6 +16,9 @@ provider:
   iamRoleStatements:
     - Effect: Allow
       Action:
+        - 
+    - Effect: Allow
+      Action:
         - dynamodb:Query
         - dynamodb:Scan
         - dynamodb:GetItem
@@ -143,6 +146,12 @@ resources:
             AttributeDataType: String
             Mutable: true
           - Name: lower_power_price
+            AttributeDataType: String
+            Mutable: true
+          - Name: utility_provider_name
+            AttributeDataType: String
+            Mutable: true
+          - Name: tariff_name
             AttributeDataType: String
             Mutable: true
         Policies:
