@@ -16,7 +16,7 @@ provider:
   iamRoleStatements:
     - Effect: Allow
       Action:
-        - 
+        -
     - Effect: Allow
       Action:
         - dynamodb:Query
@@ -151,7 +151,16 @@ resources:
           - Name: utility_provider_name
             AttributeDataType: String
             Mutable: true
-          - Name: tariff_name
+          - Name: product_import_name
+            AttributeDataType: String
+            Mutable: true
+          - Name: tariff_import_name
+            AttributeDataType: String
+            Mutable: true
+          - Name: product_export_name
+            AttributeDataType: String
+            Mutable: true
+          - Name: tariff_export_name
             AttributeDataType: String
             Mutable: true
         Policies:

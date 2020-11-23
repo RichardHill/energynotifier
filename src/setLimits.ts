@@ -7,21 +7,47 @@ export const setLimits: Handler = async (
   context: Context,
   cb: Callback
 ) => {
+
+  const upper_power_price = 'custom:upper_power_price';
+  const lower_power_price = 'custom:lower_power_price';
+  const product_import_name = 'custom:product_import_name';
+  const tariff_import_name = 'custom:tariff_import_name';
+  const product_export_name = 'custom:product_export_name';
+  const tariff_export_name = 'custom:tariff_export_name';
+
   // Store the invcoming values
   const updateValues: CustomAttributePayload = new CustomAttributePayload(
     JSON.parse(event.body)
   );  
 
+  console.log("The object is -:  " + event.body);
+
   var params = {
     AccessToken: updateValues.user_key,
     UserAttributes: [
       {
-        Name: "custom:upper_power_price",
+        Name: upper_power_price,
         Value: updateValues.upper_limit,
       },
       {
-        Name: "custom:lower_power_price",
+        Name: lower_power_price,
         Value: updateValues.lower_limit,
+      },
+      {
+        Name: product_import_name,
+        Value: updateValues.product_import,
+      },
+      {
+        Name: tariff_import_name,
+        Value: updateValues.tariff_import,
+      },
+      {
+        Name: product_export_name,
+        Value: updateValues.product_export,
+      },
+      {
+        Name: tariff_export_name,
+        Value: updateValues.tariff_export,
       },
     ],
   };

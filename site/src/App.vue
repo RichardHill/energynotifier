@@ -22,6 +22,10 @@
                   <icon name="subscript" color="white"></icon>
                   <span>Subscription</span>
                 </a>
+                <a id="today" href="/today">
+                  <icon name="today" color="white"></icon>
+                  <span>Today</span>
+                </a>
                 <a id="logout" href="/logout">
                   <icon name="sign-out" color="white"></icon>
                   <span>Logout</span>

@@ -6,6 +6,7 @@ import Subscription from "@/views/Subscription";
 import Callback from "@/components/Callback";
 import Pricing from "@/views/Pricing";
 import Profile from "@/views/Profile";
+import Today from "@/views/Today";
 import ErrorMsg from "@/components/ErrorMsg";
 import store from "../store";
 
@@ -56,6 +57,15 @@ const router = new VueRouter({
       component: Pricing,
       meta: {
         title: "Pricing",
+        auth: true,
+      },
+    },
+        {
+      path: "/today",
+      name: "today",
+      component: Today,
+      meta: {
+        title: "Today",
         auth: true,
       },
     },

@@ -102,6 +102,9 @@ export default {
         this.response = response;
       })
       .catch((err) => {
+        console.log(
+          "There was an error calling Authorisation -: " + JSON.stringify(err)
+        );
         this.response = err;
       });
   },
