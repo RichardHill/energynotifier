@@ -8,30 +8,43 @@ export const setLimits: Handler = async (
   cb: Callback
 ) => {
 
-  const upper_power_price = 'custom:upper_power_price';
-  const lower_power_price = 'custom:lower_power_price';
-  const product_import_name = 'custom:product_import_name';
-  const tariff_import_name = 'custom:tariff_import_name';
-  const product_export_name = 'custom:product_export_name';
-  const tariff_export_name = 'custom:tariff_export_name';
+  const upperPowerExportName = "custom:upper_power_export";
+  const lowerPowerExportName = "custom:lower_power_export";
+
+  const upperPowerImportName = "custom:upper_power_import";
+  const lowerPowerImportName = "custom:lower_power_import";
+
+  const product_import_name = 'custom:product_import';
+  const tariff_import_name = 'custom:tariff_import';
+  const product_export_name = 'custom:product_export';
+  const tariff_export_name = 'custom:tariff_export';
 
   // Store the invcoming values
   const updateValues: CustomAttributePayload = new CustomAttributePayload(
     JSON.parse(event.body)
   );  
 
-  console.log("The object is -:  " + event.body);
+  console.log("The event.body is -:  " + event.body);
+  console.log("The CustomAttributePayload is -: " + JSON.stringify(updateValues));
 
   var params = {
     AccessToken: updateValues.user_key,
     UserAttributes: [
       {
-        Name: upper_power_price,
-        Value: updateValues.upper_limit,
+        Name: upperPowerExportName,
+        Value: updateValues.upper_limit_export,
       },
       {
-        Name: lower_power_price,
-        Value: updateValues.lower_limit,
+        Name: lowerPowerExportName,
+        Value: updateValues.lower_limit_export,
+      },
+      {
+        Name: upperPowerImportName,
+        Value: updateValues.upper_limit_import,
+      },
+      {
+        Name: lowerPowerImportName,
+        Value: updateValues.lower_limit_import,
       },
       {
         Name: product_import_name,

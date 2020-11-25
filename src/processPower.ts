@@ -7,9 +7,11 @@ import { PowerProcessingResult } from './powerProcessingResult';
 export const processPower: Handler = async (event: APIGatewayEvent, context: Context, cb: Callback) => {
 
   try {
-    
+
     // Get todays data.
     const powerData = await callOctopusAPI();
+
+    console.log("Power Data to be processed is -: " + JSON.stringify(powerData));
 
     // Who needs to be notified.
     const usersToNotify = await processUsers(powerData);
@@ -34,14 +36,57 @@ export const processPower: Handler = async (event: APIGatewayEvent, context: Con
 
 const callOctopusAPI = async () => {
 
-  const dynamo = new DynamoDB.DocumentClient({ apiVersion: '2012-08-10' });
+  const databaseRecord = {
+        "date_id": parseInt(new Date().toJSON().slice(0, 10).replace(/-/g, '').toString()),
+        "date": new Date().toJSON().slice(0, 10).replace(/-/g, '/'),
+        "products" : []
+  };
 
-  const product = 'AGILE-18-02-21';
-  const tariff_type = 'electricity-tariffs';
-  const tariff_name = 'E-1R-AGILE-18-02-21-F';
-  const rate = 'standard-unit-rates';
-  const apiURL = 'https://api.octopus.energy/v1/products/';
+  //Get the API Key from the parameter store.
   const SSM_API_KEY_VALUE = 'octopus_api_key';
+  const ssm = new SSM();
+  const ssm_params = { Name: SSM_API_KEY_VALUE, WithDecryption: true }
+  const octopusAPISecret = await ssm.getParameter(ssm_params).promise();
+
+  const productsAndTariffSet = await createListOfProductsAndTariffs();
+
+  //Loop over all tariffs and products.
+  const axiosPromises = [];
+  productsAndTariffSet.forEach(item => {
+
+    const apiURL = createURL(item.product, item.tariff);
+
+     const apiResponse = axios.get(apiURL, {
+        auth: {
+          username: octopusAPISecret.Parameter.Value,
+          password: octopusAPISecret.Parameter.Value
+        }
+      });
+
+      axiosPromises.push(apiResponse);
+  }); 
+
+  await Promise.all(axiosPromises).then((axiosResults) => {
+    axiosResults.forEach((response,index) => {
+
+      const theProduct = productsAndTariffSet[index].product;
+      const theTariff = productsAndTariffSet[index].tariff;
+
+      const processedData = processApiData(response, theProduct, theTariff);
+
+      databaseRecord.products.push(processedData);
+    });
+  });
+
+  return await persistToDatabase(databaseRecord);
+
+};
+
+const createURL = (productName, tariffName) => {
+
+  const apiURL = 'https://api.octopus.energy/v1/products/';
+  const tariff_type = 'electricity-tariffs';
+  const rate = 'standard-unit-rates';
 
   //Set up the time range.
   var currentDate = new Date();
@@ -49,87 +94,72 @@ const callOctopusAPI = async () => {
   const periodFrom = 'period_from=' + new Date().toISOString().split('T')[0] + 'T23:00:00Z';
   const periodTo = 'period_to=' + tomorrow.toISOString().split('T')[0] + 'T23:00:00Z'
 
-  const octopusURL = apiURL + product + '/' + tariff_type + '/' + tariff_name + '/' + rate + '/?' + periodFrom + '&' + periodTo;
+  return apiURL + productName + '/' + tariff_type + '/' + tariffName + '/' + rate + '/?' + periodFrom + '&' + periodTo;
 
-  //Get the API Key from the parameter store.
-  const ssm = new SSM();
-  const ssm_params = { Name: SSM_API_KEY_VALUE, WithDecryption: true }
-  const octopusAPISecret = await ssm.getParameter(ssm_params).promise();
+  //tariffName = 'E-1R-AGILE-18-02-21-F';
+  //productName = 'AGILE-18-02-21';
+  //return 'https://api.octopus.energy/v1/products/AGILE-18-02-21/electricity-tariffs/E-1R-AGILE-18-02-21-F/standard-unit-rates/?period_from=2020-11-20T23:00:00Z&period_to=2020-11-23T23:00:00Z';
+};
 
-  //1. Get some readings.
-  const apiResults: AxiosResponse = await axios.get(octopusURL, {
-    auth: {
-      username: octopusAPISecret.Parameter.Value,
-      password: octopusAPISecret.Parameter.Value
-    }
-  });
+const processApiData = (apiResults, product, tariff) => {
 
+  let runningHigh = 0;
+  let runningLow = 100;
+  let runningAvg = 0;
+  let fullRecords = [];
+  var currentDate = new Date();
   let currentHigh: PowerReading;
   let currentLow: PowerReading;
 
-  if (apiResults.data) {
+  //Check that the data we are getting is for tomorrows date. Not todays.
+  if (apiResults.data.results.length === 0) return null;
 
-    let runningHigh = 0;
-    let runningLow = 100;
-    let runningAvg = 0;
-    let fullRecords = [];
+  const powerResultsArr = apiResults.data.results;
 
-    const powerResultsArr = apiResults.data.results;
+  powerResultsArr.forEach(element => {
 
-    //Check that the data we are getting is for tomorrows date. Not todays.
-    if (apiResults.data.results.length === 0)
-      return null;
+    //1. See if we have a running high
+    if (element.value_exc_vat > runningHigh) {
 
-    const firstElement = apiResults.data.results[0].valid_from;
-
-    var tomorrowsDate = new Date(new Date().setDate(currentDate.getDate() + 1)).toJSON().slice(0, 10).replace(/-/g, '-');
-
-    if (firstElement.indexOf(tomorrowsDate) === -1) {
-      console.log("----- We have failed to find data for tomorrow to process... -----");
-      return false; // Returning false will signal to call the lambda again....
-    }
-
-    powerResultsArr.forEach(element => {
-      //1. See if we have a running high
-      if (element.value_exc_vat > runningHigh) {
-
-        currentHigh = {
-          value: element.value_exc_vat,
-          start: element.valid_from,
-          end: element.valid_to,
-        }
-
-        runningHigh = element.value_exc_vat;
+      currentHigh = {
+        value: element.value_exc_vat,
+        start: element.valid_from,
+        end: element.valid_to,
       }
 
-      //2. See if we have a new low.
-      if (element.value_exc_vat < runningLow) {
-        currentLow = {
-          value: element.value_exc_vat,
-          start: element.valid_from,
-          end: element.valid_to
-        }
-      }
-
-      //3. Accumulate the average.
-      runningAvg += element.value_exc_vat;
-
-      //Store the item in our array.
-      fullRecords.push(element);
-
-    });
-
-    //Update the final properties.
-    const powerDetails: DailyPowerReading = {
-      dayHigh: currentHigh,
-      dayLow: currentLow,
-      dayAverage: runningAvg / powerResultsArr.length,
-      powerIntervals: fullRecords
+      runningHigh = element.value_exc_vat;
     }
+
+    //2. See if we have a new low.
+    if (element.value_exc_vat < runningLow) {
+      currentLow = {
+        value: element.value_exc_vat,
+        start: element.valid_from,
+        end: element.valid_to
+      }
+    }
+
+    //3. Accumulate the average.
+    runningAvg += element.value_exc_vat;
+
+    //Store the item in our array.
+    fullRecords.push(element);
+
+  });
+
+  // Update the final properties.
+  const powerDetails: DailyPowerReading = {
+    dayHigh: currentHigh,
+    dayLow: currentLow,
+    dayAverage: runningAvg / powerResultsArr.length,
+    powerIntervals: fullRecords
+  }
 
     const currentDateTime = new Date();
 
-    const theRecord = {
+    const databaseRecord =  {
+        "product_name": product,
+        "tariff_name": tariff,
         "date_id": parseInt(new Date().toJSON().slice(0, 10).replace(/-/g, '').toString()),
         "date": new Date().toJSON().slice(0, 10).replace(/-/g, '/'),
         "timeOfHarvest":  currentDateTime.toUTCString(),
@@ -144,27 +174,106 @@ const callOctopusAPI = async () => {
           "end": powerDetails.dayLow.end
         },
         "dayAverage": powerDetails.dayAverage.toString(),
-        "recordArray": fullRecords
+        "data": fullRecords
       };
 
-    var params = {
-      TableName: 'energyNotifier-dev',
-      Item: theRecord
+      return databaseRecord;
+
+};
+
+const persistToDatabase = async (apiProcessedData) => {
+
+      const databaseRecord = {
+        "date_id": parseInt(new Date().toJSON().slice(0, 10).replace(/-/g, '').toString()),
+        "date": new Date().toJSON().slice(0, 10).replace(/-/g, '/'),
+        "processed_tariff_data": apiProcessedData 
+      }
+
+      //Store into the database
+      var params = {
+        TableName: 'energyNotifier-dev',
+        Item: databaseRecord
+      };
+
+          //Store this into Dynamo.
+      var docClient = new DynamoDB.DocumentClient();
+
+      try {
+        await docClient.put(params).promise();
+        return databaseRecord;
+      }
+      catch (err) {
+        console.log("Failure when trying to store data into the database", err.message);
+        return null;
+      }
+};
+
+const createListOfProductsAndTariffs = async () => {
+
+  //Iterate all users in our User Pool.
+  const userInformation = {
+      UserPoolId: 'eu-west-2_81BpnbXU2',
+      AttributesToGet: ['custom:tariff_import','custom:tariff_export', 'custom:product_export', 'custom:product_import'],
     };
 
-    //Store this into Dynamo.
-    var docClient = new DynamoDB.DocumentClient();
+  const productTariffSet = [];
+  const processedTariffs = new Set();
 
-    try {
-      await docClient.put(params).promise();
-      return theRecord;
-    }
-    catch (err) {
-      console.log("Failure when trying to store data into the database", err.message);
-      return null;
-    }
-  };
-}
+  const importProductName = "custom:product_import";
+  const importTariffName = "custom:tariff_import";
+
+  const exportProductName = "custom:product_export";
+  const exportTariffName = "custom:tariff_export";
+
+  const cognitoidentityserviceprovider = new CognitoIdentityServiceProvider();
+  const userDetails = await cognitoidentityserviceprovider.listUsers(userInformation).promise(); 
+
+  [...userDetails.Users].forEach(element => { 
+
+      const filteredResult = element.Attributes.filter(element => element.Name.startsWith("custom"));
+
+      //Get the Import Tariff and Product
+      const importProductNameResult = filteredResult.find(item =>  item.Name === importProductName );
+      const importTariffNameResult = filteredResult.find(item => item.Name === importTariffName);
+    
+      // Store the results into the set. TODO - HANDLE UNIQUENESS OR WE WILL GET DUPLICATES
+      if (processedTariffs.has(importTariffNameResult.Value) === false) {
+
+        productTariffSet.push(
+        { 
+          type: 'import',
+          product: importProductNameResult.Value,
+          tariff: importTariffNameResult.Value,
+        });
+
+        // Add to the set so we dont duplicate.
+        processedTariffs.add(importTariffNameResult.Value);
+
+      }
+      
+      //Get the Export Tariff and Product.
+      const exportProductNameResult = filteredResult.find(item => item.Name === exportProductName);
+      const exportTariffNameResult = filteredResult.find(item=> item.Name === exportTariffName);
+
+      // Store the results into the array. TODO - HANDLE UNIQUENESS OR WE WILL GET DUPLICATES
+      if (processedTariffs.has(exportTariffNameResult.Value) === false) {
+        productTariffSet.push(
+        { 
+          type: 'export',
+          product: exportProductNameResult.Value,
+          tariff: exportTariffNameResult.Value,
+        });
+
+        // Add to the set so we dont duplicate.
+        processedTariffs.add(exportTariffNameResult.Value);
+
+      }
+      
+  });
+
+  return productTariffSet;
+
+};
 
 const processUsers = async (todaysRecord : any) => {
 
@@ -175,29 +284,31 @@ const processUsers = async (todaysRecord : any) => {
     let resultsArray = [];
 
     const userInformation = {
-      UserPoolId: 'eu-west-2_hJO9MPNwT',
+      UserPoolId: 'eu-west-2_81BpnbXU2',
       AttributesToGet: ['name','custom:upper_power_price', 'custom:lower_power_price', 'phone_number', 'email'],
     };
 
     const cognitoidentityserviceprovider = new CognitoIdentityServiceProvider();
     const userDetails = await cognitoidentityserviceprovider.listUsers(userInformation).promise(); 
+    const upperLimitName = "custom:upper_power_price";
+    const lowerLimitName = "custom:lower_power_price";
 
-    console.log("The repsonse from Cognito is -:  " + JSON.stringify(userDetails));
+    //console.log("The repsonse from Cognito is -:  " + JSON.stringify(userDetails));
+
     [...userDetails.Users].forEach(element => {
-
-      console.log("The user details are -: " + JSON.stringify(element));
 
       const filteredResult = element.Attributes.filter(element => element.Name.startsWith("custom"));
 
       //User Prices
-        const userUpperPrice = parseInt(filteredResult[0].Value);
-        const userLowerPrice = parseInt(filteredResult[1].Value);
+      const userUpperPriceResult = filteredResult.find(item => item.Name === upperLimitName);
+      const userLowerPriceResult = filteredResult.find(item => item.Name === lowerLimitName);
+
+      const userUpperPrice = parseInt(userUpperPriceResult.Value);
+      const userLowerPrice = parseInt(userLowerPriceResult.Value);
 
       //Todays Prices
-      console.log("Todays Record is -: " + JSON.stringify(todaysRecord));
-
-        const todaysUpper = parseInt(todaysRecord.dayHigh.price);
-        const todaysLower = parseInt(todaysRecord.dayLow.price);
+      const todaysUpper = parseInt(todaysRecord.dayHigh.price);
+      const todaysLower = parseInt(todaysRecord.dayLow.price);
 
       // Are we close to the user upper price?
       let upperTrigger : boolean = false;
@@ -211,11 +322,11 @@ const processUsers = async (todaysRecord : any) => {
         lowerTrigger = true;
       }
     
-      resultsArray.push(new PowerProcessingResult(upperTrigger, lowerTrigger, element));
+       resultsArray.push(new PowerProcessingResult(upperTrigger, lowerTrigger, element));
 
-    });
+     });
 
-    console.log("Return this array =: " + JSON.stringify(resultsArray));
+     console.log("Return this array =: " + JSON.stringify(resultsArray));
     
   return resultsArray;
 };
@@ -295,7 +406,7 @@ const getUsers = async () => {
 
   var cognitoidentityserviceprovider = new CognitoIdentityServiceProvider({ apiVersion: '2016-04-18' });
 
-  const USER_POOL_ID = 'eu-west-2_u3t7HUjtu';
+  const USER_POOL_ID = 'eu-west-2_81BpnbXU2';
 
   var params = {
     UserPoolId: USER_POOL_ID,
@@ -415,3 +526,12 @@ const informViaEmail = async (email_address) => {
   // if (Object.keys(todaysRecord).length === 0) {
   //    todaysRecord = await callOctopusAPI();
   // } 
+
+  //   const firstElement = apiResults.data.results[0].valid_from;
+
+  // var tomorrowsDate = new Date(new Date().setDate(currentDate.getDate() + 1)).toJSON().slice(0, 10).replace(/-/g, '-');
+
+  //   if (firstElement.indexOf(tomorrowsDate) === -1) {
+  //     console.log("----- We have failed to find data for tomorrow to process... -----");
+  //     return false; // Returning false will signal to call the lambda again....
+  //   }

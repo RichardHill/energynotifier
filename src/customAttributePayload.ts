@@ -5,8 +5,10 @@ export class CustomAttributePayload {
    *
    */
   constructor(responseObject: any) {
-    this.lower_limit = responseObject.lower_limit;
-    this.upper_limit = responseObject.upper_limit;
+    this.lower_limit_export = responseObject.lower_limit_export;
+    this.upper_limit_export = responseObject.upper_limit_export;
+    this.lower_limit_import = responseObject.lower_limit_import;
+    this.upper_limit_import = responseObject.upper_limit_import;
     this.product_import = responseObject.product_import;
     this.tariff_import = responseObject.tariff_import;
     this.product_export = responseObject.product_export;
@@ -14,8 +16,10 @@ export class CustomAttributePayload {
     this.user_key = responseObject.user_key;
   }
 
-  public upper_limit: string;
-  public lower_limit: string;
+  public upper_limit_export: string;
+  public lower_limit_export: string;  
+  public upper_limit_import: string;
+  public lower_limit_import: string;
   public product_import: string;
   public tariff_import: string;
   public product_export: string;

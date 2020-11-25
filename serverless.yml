@@ -16,9 +16,6 @@ provider:
   iamRoleStatements:
     - Effect: Allow
       Action:
-        -
-    - Effect: Allow
-      Action:
         - dynamodb:Query
         - dynamodb:Scan
         - dynamodb:GetItem
@@ -28,7 +25,7 @@ provider:
       Resource: "arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/${self:provider.environment.DAILY_POWER_TABLE}"
     - Effect: Allow
       Action:
-        - lambda:Execute
+        - ssm:GetParameter
       Resource: "arn:aws:lambda:${opt:region, self:provider.region}:*:function/checkPower"
     - Effect: Allow
       Action:
@@ -142,25 +139,31 @@ resources:
             AttributeDataType: String
             Mutable: true
             Required: true
-          - Name: upper_power_price
+          - Name: upper_power_import
             AttributeDataType: String
             Mutable: true
-          - Name: lower_power_price
+          - Name: lower_power_import
             AttributeDataType: String
             Mutable: true
-          - Name: utility_provider_name
+          - Name: upper_power_export
             AttributeDataType: String
             Mutable: true
-          - Name: product_import_name
+          - Name: lower_power_export
             AttributeDataType: String
             Mutable: true
-          - Name: tariff_import_name
+          - Name: utility_provider
             AttributeDataType: String
             Mutable: true
-          - Name: product_export_name
+          - Name: product_import
             AttributeDataType: String
             Mutable: true
-          - Name: tariff_export_name
+          - Name: tariff_import
+            AttributeDataType: String
+            Mutable: true
+          - Name: product_export
+            AttributeDataType: String
+            Mutable: true
+          - Name: tariff_export
             AttributeDataType: String
             Mutable: true
         Policies:

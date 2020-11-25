@@ -30,7 +30,7 @@
         <option> Please select a tariff </option>
         <option
           v-for="(tariff, index) in this.energy_tariffs_import"
-          :value="selected_import_tariff"
+          :value="tariff"
           :key="index"
           >{{ tariff }}</option
         >
@@ -61,7 +61,7 @@
         <option> Please select a tariff </option>
         <option
           v-for="(tariff, index) in this.energy_tariffs_export"
-          :value="selected_export_tariff"
+          :value="tariff"
           :key="index"
           >{{ tariff }}</option
         >
@@ -69,22 +69,42 @@
     </div>
     <br />
     <br />
-    <p>
-      <span
-        >Please choose the pricing levels that you wish to be alerted about your
-        Electrcitiy
-      </span>
-    </p>
-    <ul>
-      <li>
-        <p>Upper Limit</p>
-        <input v-model.number="upperLimit" type="number" />
-      </li>
-      <li>
-        <p>Lower Limit</p>
-        <input v-model.number="lowerLimit" type="number" />
-      </li>
-    </ul>
+    <div>
+      <p>
+        <span
+          >Please choose the pricing levels that you wish to be alerted about
+          your Export Electrcitiy
+        </span>
+      </p>
+      <ul>
+        <li>
+          <p>Export Upper Limit</p>
+          <input v-model.number="export_upperLimit" type="number" />
+        </li>
+        <li>
+          <p>Export Lower Limit</p>
+          <input v-model.number="export_lowerLimit" type="number" />
+        </li>
+      </ul>
+    </div>
+    <div>
+      <p>
+        <span
+          >Please choose the pricing levels that you wish to be alerted about
+          your Import Electrcitiy
+        </span>
+      </p>
+      <ul>
+        <li>
+          <p>Import Upper Limit</p>
+          <input v-model.number="import_upperLimit" type="number" />
+        </li>
+        <li>
+          <p>Import Lower Limit</p>
+          <input v-model.number="import_lowerLimit" type="number" />
+        </li>
+      </ul>
+    </div>
     <br />
     <button v-on:click="update">Update</button>
   </div>
@@ -97,53 +117,6 @@ import axios from "axios";
 export default {
   name: "subscription",
   mounted: async function() {
-    const results = await cognito.getUserEnergyValues(
-      this.$store.getters.accessToken
-    );
-
-    const upperLimitName = "custom:upper_power_price";
-    const lowerLimitName = "custom:lower_power_price";
-
-    const exportProductName = "custom:product_export_name";
-    const exportTariffName = "custom:tariff_export_name";
-
-    const importProductName = "custom:product_import_name";
-    const importTariffName = "custom:tariff_import_name";
-
-    const upperResult = results.data.find((element) => {
-      if (element.Name === upperLimitName) {
-        return element;
-      }
-    });
-
-    this.upperLimit = upperResult.Value;
-
-    const lowerResult = results.data.find((element) => {
-      if (element.Name === lowerLimitName) return element;
-    });
-
-    this.lowerLimit = lowerResult.Value;
-
-    // Products
-    const exportProductCode = results.data.find((element) => {
-      if (element.Name === exportProductName) return element;
-    });
-
-    const importProductCode = results.data.find((element) => {
-      if (element.Name === importProductName) return element;
-    });
-
-    // Tariffs
-    const importTariffResult = results.data.find((element) => {
-      if (element.Name === importTariffName) return element;
-    });
-    this.selected_import_tariff = importTariffResult.Value;
-
-    const exportTariffResult = results.data.find((element) => {
-      if (element.Name === exportTariffName) return element;
-    });
-    this.selected_export_tariff = exportTariffResult.Value;
-
     var http = axios.create({
       baseURL: "https://api.octopus.energy/v1/products",
       headers: {
@@ -159,7 +132,6 @@ export default {
         this.selected_export_product = this.energy_products.find(
           (element) => element.code === exportProductCode.Value
         );
-
         this.selected_import_product = this.energy_products.find(
           (element) => element.code === importProductCode.Value
         );
@@ -173,11 +145,68 @@ export default {
 
     await this.getImportTariffs();
     await this.getExportTariffs();
+
+    const results = await cognito.getUserEnergyValues(
+      this.$store.getters.accessToken
+    );
+
+    const upperPowerExportName = "custom:upper_power_export";
+    const lowerPowerExportName = "custom:lower_power_export";
+    const upperPowerImportName = "custom:upper_power_import";
+    const lowerPowerImportName = "custom:lower_power_import";
+
+    const exportProductName = "custom:product_export";
+    const exportTariffName = "custom:tariff_export";
+
+    const importProductName = "custom:product_import";
+    const importTariffName = "custom:tariff_import";
+
+    //Limits
+    const upperPowerExportResult = results.data.find(
+      (element) => element.Name === upperPowerExportName
+    );
+    this.export_upperLimit = upperPowerExportResult.Value;
+
+    const lowerPowerExportResult = results.data.find(
+      (element) => element.Name === lowerPowerExportName
+    );
+    this.export_lowerLimit = lowerPowerExportResult.Value;
+
+    const upperPowerImportResult = results.data.find(
+      (element) => element.Name === upperPowerImportName
+    );
+    this.import_upperLimit = upperPowerImportResult.Value;
+
+    const lowerPowerImportResult = results.data.find(
+      (element) => element.Name === lowerPowerImportName
+    );
+    this.import_lowerLimit = lowerPowerImportResult.Value;
+
+    // Products
+    const exportProductCode = results.data.find(
+      (element) => element.Name === exportProductName
+    );
+    const importProductCode = results.data.find(
+      (element) => element.Name === importProductName
+    );
+
+    // Tariffs
+    const importTariffResult = results.data.find(
+      (element) => element.Name === importTariffName
+    );
+    this.selected_import_tariff = importTariffResult.Value;
+
+    const exportTariffResult = results.data.find(
+      (element) => element.Name === exportTariffName
+    );
+    this.selected_export_tariff = exportTariffResult.Value;
   },
   data: function() {
     return {
-      upperLimit: 0,
-      lowerLimit: 0,
+      export_upperLimit: 0,
+      export_lowerLimit: 0,
+      import_upperLimit: 0,
+      import_lowerLimit: 0,
       energy_products: [],
       energy_tariffs_import: [],
       energy_tariffs_export: [],
@@ -191,8 +220,10 @@ export default {
     update: async function() {
       const accessToken = this.$store.getters.accessToken;
       await cognito.updateUserEnergyValues(
-        this.lowerLimit,
-        this.upperLimit,
+        this.export_lowerLimit,
+        this.export_upperLimit,
+        this.import_lowerLimit,
+        this.import_upperLimit,
         this.selected_import_product.code,
         this.selected_import_tariff,
         this.selected_export_product.code,
@@ -239,8 +270,6 @@ export default {
           const theCode =
             response.data.single_register_electricity_tariffs[property]
               .direct_debit_monthly.code;
-
-          console.log("The code is -: " + theCode);
 
           if (theCode) this.energy_tariffs_export.push(theCode);
         }
