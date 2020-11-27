@@ -11,8 +11,6 @@ export const processPower: Handler = async (event: APIGatewayEvent, context: Con
     // Get todays data.
     const powerData = await callOctopusAPI();
 
-    console.log("Power Data to be processed is -: " + JSON.stringify(powerData));
-
     // Who needs to be notified.
     const usersToNotify = await processUsers(powerData);
 
@@ -280,35 +278,42 @@ const processUsers = async (todaysRecord : any) => {
   if (todaysRecord === null) {
     console.log("----- NO POWER DATA ------")
   }
+
+  console.log(" The power data is -: " + JSON.stringify(todaysRecord));
     // Get the customer values
     let resultsArray = [];
 
+    const upperLimitImportName = "custom:upper_power_import";
+    const lowerLimitImportName = "custom:lower_power_import";
+
+    const upperLimitExportName = "custom:upper_power_export";
+    const lowerLimitExportName = "custom:lower_power_export";
+
     const userInformation = {
       UserPoolId: 'eu-west-2_81BpnbXU2',
-      AttributesToGet: ['name','custom:upper_power_price', 'custom:lower_power_price', 'phone_number', 'email'],
+      AttributesToGet: [upperLimitImportName, lowerLimitImportName, upperLimitExportName, lowerLimitExportName, 'name','email', 'phone_number'],
     };
 
     const cognitoidentityserviceprovider = new CognitoIdentityServiceProvider();
     const userDetails = await cognitoidentityserviceprovider.listUsers(userInformation).promise(); 
-    const upperLimitName = "custom:upper_power_price";
-    const lowerLimitName = "custom:lower_power_price";
-
-    //console.log("The repsonse from Cognito is -:  " + JSON.stringify(userDetails));
 
     [...userDetails.Users].forEach(element => {
 
       const filteredResult = element.Attributes.filter(element => element.Name.startsWith("custom"));
 
       //User Prices
-      const userUpperPriceResult = filteredResult.find(item => item.Name === upperLimitName);
-      const userLowerPriceResult = filteredResult.find(item => item.Name === lowerLimitName);
+      const userUpperPriceResult = filteredResult.find(item => item.Name === upperLimitImportName);
+      const userLowerPriceResult = filteredResult.find(item => item.Name === lowerLimitImportName);
+
+      console.log("The upper Price result is -: " + JSON.stringify(userUpperPriceResult));
+      console.log("The lower Price result is -: " + JSON.stringify(userLowerPriceResult));
 
       const userUpperPrice = parseInt(userUpperPriceResult.Value);
       const userLowerPrice = parseInt(userLowerPriceResult.Value);
 
       //Todays Prices
-      const todaysUpper = parseInt(todaysRecord.dayHigh.price);
-      const todaysLower = parseInt(todaysRecord.dayLow.price);
+      const todaysUpper = parseInt(todaysRecord.processed_tariff_data.products[0].dayHigh.price);
+      const todaysLower = parseInt(todaysRecord.processed_tariff_data.products[0].dayLow.price);
 
       // Are we close to the user upper price?
       let upperTrigger : boolean = false;
@@ -345,12 +350,12 @@ const informUsers = async (users, powerData) => {
           let message = 'Hi, ' + user.theUser.Name;
 
           if (user.upperLimitTrigger) {
-            message += " between " + new Date(powerData.dayHigh.start).toLocaleString() + " and " +  new Date(powerData.dayHigh.end).toLocaleString() + " you will be charged " + powerData.dayHigh.price + " pence to use electricity";
+            message += " between " + new Date(powerData.processed_tariff_data.products[0].dayHigh.start).toLocaleString() + " and " +  new Date(powerData.processed_tariff_data.products[0].dayHigh.end).toLocaleString() + " you will be charged " + powerData.processed_tariff_data.products[0].dayHigh.price + " pence to use electricity";
           }
 
           if (user.lowerLimitTrigger) {
             if (user.upperLimitTrigger) message += " and ";
-            message += " between " + new Date(powerData.dayLow.start).toLocaleString() + " and " + new Date(powerData.dayLow.end).toLocaleString() + " you will be cahrged " + powerData.dayLow.price + " pence to use electricity";
+            message += " between " + new Date(powerData.processed_tariff_data.products[0].dayLow.start).toLocaleString() + " and " + new Date(powerData.processed_tariff_data.products[0].dayLow.end).toLocaleString() + " you will be cahrged " + powerData.processed_tariff_data.products[0].dayLow.price + " pence to use electricity";
           }
         
           const phone_number = user.theUser.phone_number;
@@ -400,7 +405,6 @@ const informViaText = async (phone_number, message) => {
     throw err;
   }
 }
-
 
 const getUsers = async () => {
 
