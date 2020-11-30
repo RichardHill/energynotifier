@@ -104,6 +104,12 @@ functions:
       - http:
           path: get
           method: get
+  getPower:
+    handler: src/getPower.getPower
+    events:
+      - http:
+          path: get-power
+          method: get
 
 resources:
   Resources:

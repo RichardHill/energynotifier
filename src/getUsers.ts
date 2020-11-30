@@ -1,6 +1,7 @@
 import { CognitoIdentityServiceProvider} from "aws-sdk";
 import { APIGatewayEvent, Callback, Context, Handler } from "aws-lambda";
 
+
 export const getUsers: Handler = async (
   event: APIGatewayEvent,
   context: Context,
