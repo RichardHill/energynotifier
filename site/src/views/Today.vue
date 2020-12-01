@@ -38,24 +38,23 @@ export default {
     var stopDate = currentDate.addDays(-5);
 
     while (currentDate >= stopDate) {
-      console.log("Add date -: " + currentDate.toString());
       this.dates.push(new Date(currentDate));
       currentDate = currentDate.addDays(-1);
     }
 
-    //Get the data for today.
+    //Get the data for today - EXTEND THIS TO COPE WITH THE USERS TARIFF/PRODUCT.
     const yesterday = new Date().addDays(-1);
     this.processAndDisplay(yesterday);
   },
   methods: {
-    fillData(price, time) {
+    fillData(price, time, type) {
       this.options = {
         legend: {
           display: true,
         },
         title: {
           display: true,
-          text: "Octopus Export Prices - ",
+          text: "Octopus Energy - " + type,
         },
         responsive: true,
         maintainAspectRatio: false,
@@ -73,9 +72,11 @@ export default {
       };
     },
     async getPowerData(theDate) {
-      const properMonth = (parseInt(theDate.getMonth()) + 1).toString();
+      const properMonth = ("0" + (theDate.getMonth() + 1)).slice(-2);
+      let properDay = ("0" + theDate.getDate()).slice(-2);
+
       const formattedDate =
-        theDate.getFullYear() + "-" + properMonth + "-" + theDate.getDate();
+        theDate.getFullYear() + "-" + properMonth + "-" + properDay;
 
       const thePowerData = await powerData.getPower(
         formattedDate,
@@ -114,7 +115,13 @@ export default {
           );
         });
 
-        this.fillData(price, time);
+        const product_name = theData.data.output.L[0].M.product_name.S;
+        const tariff_name = theData.data.output.L[0].M.tariff_name.S;
+        const product_type = theData.data.output.L[0].M.product_type.S;
+
+        const type =
+          "Tariff " + product_name + " / " + tariff_name + " - " + product_type; //theData.data.
+        this.fillData(price, time, type);
       }
     },
   },

@@ -26,60 +26,20 @@ provider:
     - Effect: Allow
       Action:
         - ssm:GetParameter
-      Resource: "arn:aws:lambda:${opt:region, self:provider.region}:*:function/checkPower"
-    - Effect: Allow
-      Action:
-        - cognito-identity:GetId
-        - cognito-identity:SetIdentityPoolRoles
-        - cognito-identity:ListIdentityPools
-        - cognito-identity:CreateIdentityPool
-        - cognito-identity:UnlinkIdentity
-        - cognito-identity:DeleteIdentities
-        - cognito-identity:GetOpenIdToken
-        - cognito-identity:DescribeIdentity
-        - cognito-identity:GetCredentialsForIdentity
       Resource:
-        - "arn:aws:lambda:${opt:region, self:provider.region}:*:function/getUsers"
-        - "arn:aws:lambda:${opt:region, self:provider.region}:*:function/setLimits"
-        - "arn:aws:lambda:${opt:region, self:provider.region}:*:function/getLimits"
+        - "arn:aws:lambda:${opt:region, self:provider.region}:*:function/checkPower"
     - Effect: Allow
       Action:
-        - cognito-idp:ForgotPassword
-        - cognito-idp:GlobalSignOut,
-        - cognito-idp:ConfirmSignUp"
-        - cognito-identity:ListIdentityPools"
-        - cognito-idp:CreateUserPool"
-        - cognito-identity:CreateIdentityPool"
-        - cognito-identity:GetOpenIdToken
-        - cognito-idp:ForgetDevice
+        - sns:Publish
+      Resource:
+        - "arn:aws:lambda:${opt:region, self:provider.region}:*:function/checkPower"
+    - Effect: Allow
+      Action:
+        - cognito-idp:ListUsers
         - cognito-identity:GetId
-        - cognito-identity:SetIdentityPoolRoles
-        - cognito-identity:DeleteIdentities
-        - cognito-idp:GetUserAttributeVerificationCode
-        - cognito-idp:DeleteUser
-        - cognito-idp:InitiateAuth
-        - cognito-idp:SetUserMFAPreference
-        - cognito-identity:DescribeIdentity
-        - cognito-idp:ConfirmForgotPassword
         - cognito-idp:GetUser
-        - cognito-idp:SetUserSettings
-        - cognito-idp:SignUp
-        - cognito-idp:VerifyUserAttribute
-        - cognito-idp:ListDevices
         - cognito-idp:ListUserPools
-        - cognito-idp:AssociateSoftwareToken
-        - cognito-idp:VerifySoftwareToken
-        - cognito-idp:GetDevice
-        - cognito-idp:DeleteUserAttributes
-        - cognito-idp:RespondToAuthChallenge
         - cognito-idp:UpdateUserAttributes
-        - cognito-idp:DescribeUserPoolDomain
-        - cognito-identity:UnlinkIdentity
-        - cognito-idp:UpdateDeviceStatus
-        - cognito-idp:ChangePassword
-        - cognito-idp:ConfirmDevice
-        - cognito-idp:ResendConfirmationCode
-        - cognito-identity:GetCredentialsForIdentity
       Resource:
         - "arn:aws:lambda:${opt:region, self:provider.region}:*:function/getUsers"
         - "arn:aws:lambda:${opt:region, self:provider.region}:*:function/setLimits"

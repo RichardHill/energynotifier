@@ -34,12 +34,6 @@ export const processPower: Handler = async (event: APIGatewayEvent, context: Con
 
 const callOctopusAPI = async () => {
 
-  const databaseRecord = {
-        "date_id": parseInt(new Date().toJSON().slice(0, 10).replace(/-/g, '').toString()),
-        "date": new Date().toJSON().slice(0, 10).replace(/-/g, '/'),
-        "products" : []
-  };
-
   //Get the API Key from the parameter store.
   const SSM_API_KEY_VALUE = 'octopus_api_key';
   const ssm = new SSM();
@@ -47,6 +41,12 @@ const callOctopusAPI = async () => {
   const octopusAPISecret = await ssm.getParameter(ssm_params).promise();
 
   const productsAndTariffSet = await createListOfProductsAndTariffs();
+
+  const databaseRecord = {
+        "date_id": parseInt(new Date().toJSON().slice(0, 10).replace(/-/g, '').toString()),
+        "date": new Date().toJSON().slice(0, 10).replace(/-/g, '/'),
+        "products" : []
+  };
 
   //Loop over all tariffs and products.
   const axiosPromises = [];
@@ -67,10 +67,11 @@ const callOctopusAPI = async () => {
   await Promise.all(axiosPromises).then((axiosResults) => {
     axiosResults.forEach((response,index) => {
 
+      const productType =  productsAndTariffSet[index].type;
       const theProduct = productsAndTariffSet[index].product;
       const theTariff = productsAndTariffSet[index].tariff;
 
-      const processedData = processApiData(response, theProduct, theTariff);
+      const processedData = processApiData(response, theProduct, theTariff, productType);
 
       databaseRecord.products.push(processedData);
     });
@@ -99,13 +100,12 @@ const createURL = (productName, tariffName) => {
   //return 'https://api.octopus.energy/v1/products/AGILE-18-02-21/electricity-tariffs/E-1R-AGILE-18-02-21-F/standard-unit-rates/?period_from=2020-11-20T23:00:00Z&period_to=2020-11-23T23:00:00Z';
 };
 
-const processApiData = (apiResults, product, tariff) => {
+const processApiData = (apiResults, product, tariff, productType) => {
 
   let runningHigh = 0;
   let runningLow = 100;
   let runningAvg = 0;
   let fullRecords = [];
-  var currentDate = new Date();
   let currentHigh: PowerReading;
   let currentLow: PowerReading;
 
@@ -113,6 +113,8 @@ const processApiData = (apiResults, product, tariff) => {
   if (apiResults.data.results.length === 0) return null;
 
   const powerResultsArr = apiResults.data.results;
+
+  console.log("The results from the API are -: " + JSON.stringify(powerResultsArr));
 
   powerResultsArr.forEach(element => {
 
@@ -157,6 +159,7 @@ const processApiData = (apiResults, product, tariff) => {
 
     const databaseRecord =  {
         "product_name": product,
+        "product_type": productType,
         "tariff_name": tariff,
         "date_id": parseInt(new Date().toJSON().slice(0, 10).replace(/-/g, '').toString()),
         "date": new Date().toJSON().slice(0, 10).replace(/-/g, '/'),
@@ -164,12 +167,12 @@ const processApiData = (apiResults, product, tariff) => {
         "dayHigh": {
           "price": powerDetails.dayHigh.value,
           "start": powerDetails.dayHigh.start,
-          "end": powerDetails.dayHigh.end
+          "end": powerDetails.dayHigh.end,
         },
         "dayLow": {
           "price": powerDetails.dayLow.value,
           "start": powerDetails.dayLow.start,
-          "end": powerDetails.dayLow.end
+          "end": powerDetails.dayLow.end,
         },
         "dayAverage": powerDetails.dayAverage.toString(),
         "data": fullRecords
